@@ -74,12 +74,10 @@
   // the field of launches: one in five copies the left coin, one in five the right one, the rest are noise
   const FIELD = Array.from({ length: 96 }, (_, i) => ({ u: .04 + rnd(i, 1) * .92, v: .07 + rnd(i, 2) * .8, born: TL.feed0 + rnd(i, 3) * (TL.feed1 - TL.feed0), s: .55 + rnd(i, 4) * .6, grp: i % 5 === 0 ? 1 : i % 5 === 1 ? 2 : 0, w: rnd(i, 5) * 6.28, d: rnd(i, 6) }));
   const hero = window.LED(led, {
-    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 50, ease: .24, idle: false,
-    post(ctx, w, h, t0) {                                // the panel powers on from the centre
-      const t = skipAt != null ? END : t0 + offset; if (t > 1.1) return;
-      const k = ease.out(t / 1.05), r = Math.hypot(w, h) * .55 * k, gr = ctx.createRadialGradient(w / 2, h * .38, Math.max(1, r * .82), w / 2, h * .38, Math.max(2, r));
-      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
-    },
+    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 60, ease: .2, idle: false,
+    gpu: true,
+    // the panel powers on from the centre (the GPU path dims dots outside a growing circle)
+    power(t0, gw, gh) { const t = skipAt != null ? END : t0 + offset; if (t > 1.1) return null; return [gw / 2, gh * .38, Math.hypot(gw, gh) * .55 * ease.out(t / 1.05)]; },
     draw(g, gw, gh, t0, A) {
       const t = skipAt != null ? t0 - skipAt + END : t0 + offset;
       const mob = gw < 70, TW = Math.min(gw * (mob ? .58 : .27), gh * .36 * 2), TH = TW / 2, cx = gw / 2, cy = gh * (mob ? .29 : .31);
@@ -155,15 +153,8 @@
     },
   });
   requestAnimationFrame(() => led.classList.add('on'));
-  // the loader line: what is being read, with real numbers once they arrive. It only says 100% when the data is in.
-  let bootLast = '';
-  function boot(t) {
-    const lv = S.live, rd = S.radar, ready = !!(lv || rd), h1 = lv && lv.stats ? lv.stats.h1 : null, nv = rd ? rd.reduce((a, x) => a + (x.vamps || 0), 0) : null;
-    const cap = t < TL.beam0 ? 'CONNECTING TO SOLANA' : t < TL.pull0 ? (h1 ? `READING ${h1.toLocaleString()} LAUNCHES FROM THE LAST HOUR` : 'READING EVERY NEW LAUNCH') : t < TL.thread ? (nv ? `${nv.toLocaleString()} COPIES FOUND ON WHAT'S TRENDING` : 'FINDING THE COPIES') : t < TL.txt ? 'TYING THEM TOGETHER' : 'TIED';
-    if (cap !== bootLast) { bootLast = cap; const el = $('#bootT'); el.classList.remove('in'); void el.offsetWidth; el.textContent = cap; el.classList.add('in'); }
-    const p = Math.min(ready ? 100 : 97, Math.round(clamp(t / (END - .5)) * 100));
-    $('#bootBar').style.width = p + '%'; $('#bootP').textContent = p + '%';
-  }
+  // a thin loading line, no text. It only fills once the live data is in.
+  function boot(t) { const p = Math.min(S.live || S.radar ? 100 : 96, clamp(t / (END - .5)) * 100); $('#bootBar').style.transform = `scaleX(${p / 100})`; }
   function finishIntro() { introDone = true; document.body.classList.remove('intro'); }
   const skip = () => { if (!introDone && skipAt == null) skipAt = hero.t; };  // jumps straight to the finished hero
   ['wheel', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, skip, { passive: true, once: true }));
