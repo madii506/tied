@@ -266,6 +266,7 @@
   async function loadRadar() {
     try {
       const r = await api('radar'), list = (Array.isArray(r) ? r : r.list || []).filter(x => x.vamps > 0); radarAt = r.at || Date.now(); tickRadar();
+      S.radar = list; renderBoard(list); renderSugg(list); setMarquee(list);
       if (!list.length) return;
       const one = list.map(x => `<button type="button" data-vq="${esc(x.symbol)}">${av(x)}<b>$${esc(x.symbol)}</b><span>${x.vamps} vamp${x.vamps === 1 ? '' : 's'}</span>${x.fresh ? `<i class="fresh">+${x.fresh} this hour</i>` : ''}<em>${x.newest != null ? 'newest ' + (x.newest < 1 ? 'just now' : mins(x.newest) + ' ago') : ''}</em></button>`).join('');
       $('#radarIn').innerHTML = one + one; $('#radarIn').style.animationDuration = Math.max(30, list.length * 9) + 's'; $('#radar').hidden = false;
@@ -286,6 +287,7 @@
       const o = r.og;
       out.innerHTML = `<div class="og">${av(o, true)}<div><h3>$${esc(o.symbol)} <span style="color:var(--mu);font-weight:500;font-size:16px">${esc(o.name)}</span></h3><div class="m mono"><span>launched <b>${ago(o.created)}</b></span><span>mc <b>${usd(o.mc)}</b></span><span>vol 24h <b>${usd(o.vol)}</b></span><span class="mono">${esc(short(o.mint))}</span></div></div>
         <div class="acts"><a class="btn sm" href="${esc(o.url || 'https://dexscreener.com/solana/' + o.mint)}" target="_blank" rel="noopener">Chart</a><button class="btn sm" type="button" data-copy="${esc(o.mint)}">Copy CA</button></div></div>
+        ${r.vamps.length ? `<div class="bline">${bloodline(r.vamps.map(v => [v.after, v.ago, v.mc]), o.mc, 900, 84)}<div class="ft"><span>THE ORIGINAL · launched ${ago(o.created)}</span><span>EACH DOT IS A VAMP · SIZE = MARKET CAP · WHITE = THIS HOUR</span><span>NOW</span></div></div>` : ''}
         <div class="vhead"><span><b>${r.vamps.length}</b> VAMP${r.vamps.length === 1 ? '' : 'S'} · <b>${r.vamps.filter(v => v.ago <= 60).length}</b> THIS HOUR · ${usd(r.vamps.reduce((a, v) => a + (v.vol || 0), 0))} VOLUME</span><span class="live"><i></i>RESCANS EVERY MINUTE · <b id="vAge">just now</b></span></div>
         ${r.vamps.length ? `<div class="vlist">${r.vamps.map((v, i) => `<div class="vrow${before.size && !before.has(v.mint) ? ' new' : ''}" style="--i:${quiet ? 0 : Math.min(i, 20)}"><span class="n">#${i + 1}</span>${av(v)}<span class="nm"><b>$${esc(v.symbol)} · ${esc(v.name)}${v.ago <= 60 ? ' <i class="fresh">NEW</i>' : ''}</b><span>${esc(short(v.mint))} · launched ${v.ago < 1 ? 'just now' : mins(v.ago) + ' ago'}</span></span><span class="h-a">+${mins(v.after)}</span><span class="h-m">${usd(v.mc)}</span><span class="h-v">${usd(v.vol)} vol</span><span class="acts"><button class="btn sm" type="button" data-prop="${esc(o.mint)}|${esc(v.mint)}">Propose</button><button class="btn sm" type="button" data-mv="${esc(v.mint)}|${esc(o.mint)}">Move in</button></span></div>`).join('')}</div>` : `<div class="empty"><b>No vamps.</b> This one is the only one.</div>`}`;
       if (quiet && before.size) { const n = r.vamps.filter(v => !before.has(v.mint)).length; if (n) toast(`${n} new vamp${n === 1 ? '' : 's'} of $${r.og.symbol} just launched`); }
@@ -483,6 +485,62 @@
   async function loadSingles() {
     try { const r = await api('singles'); if (!r.coins.length) return; $('#sList').innerHTML = r.coins.map(c => `<div class="srow">${av(c)}<span><b>$${esc(c.symbol)}</b>${esc(c.name)} · ${c.mc ? usd(c.mc) : 'new'}</span><span class="acts" style="display:flex;gap:6px"><a class="btn sm" href="https://pump.fun/coin/${esc(c.mint)}" target="_blank" rel="noopener">Buy</a><button class="btn sm" type="button" data-vq="${esc(c.symbol)}">Vamps</button></span></div>`).join(''); } catch (e) { }
   }
+
+  /* ---------------- the bloodline: the original on the left, every vamp placed by when it launched ---------------- */
+  function bloodline(pts, ogMc, w, h) {
+    const pad = 14, maxA = Math.max(30, ...pts.map(p => p[0])), maxMc = Math.max(1, ogMc || 0, ...pts.map(p => p[2])), L = Math.log(1 + maxA);
+    const X = a => pad + 18 + (w - pad * 2 - 18) * Math.log(1 + a) / L, mid = h / 2;
+    const ticks = [[60, '1h'], [1440, '1d'], [10080, '1w'], [43200, '30d']].filter(t => t[0] < maxA).map(t => `<line x1="${X(t[0])}" x2="${X(t[0])}" y1="${mid - 4}" y2="${mid + 4}" stroke="#333"/><text x="${X(t[0])}" y="${h - 2}" fill="#555" font-size="10" font-family="M,monospace" text-anchor="middle">${t[1]}</text>`).join('');
+    const dots = pts.map((p, i) => { const r = 2 + 9 * Math.sqrt((p[2] || 0) / maxMc), y = mid + ((i % 5) - 2) * Math.min(5, h / 12); return `<circle cx="${X(p[0]).toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${p[1] <= 60 ? '#efefef' : '#5c5c5c'}" stroke="#000" stroke-width="1"><animate attributeName="r" from="0" to="${r.toFixed(1)}" dur=".6s" begin="${(i * .03).toFixed(2)}s" fill="freeze"/></circle>`; }).join('');
+    const ogR = 3 + 10 * Math.sqrt((ogMc || 0) / maxMc);
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><line x1="${pad}" x2="${w - pad}" y1="${mid}" y2="${mid}" stroke="#2a2a2a"/>${ticks}${dots}<circle cx="${pad + 4}" cy="${mid}" r="${Math.max(6, ogR)}" fill="#fff" stroke="#777" stroke-width="2"/></svg>`;
+  }
+  function renderBoard(list) {
+    const box = $('#vBoard'); $('#vbAge').textContent = 'rescans every minute';
+    if (!list.length) { box.innerHTML = `<div class="empty" style="grid-column:1/-1">Nothing trending has been copied yet. Give it a minute.</div>`; return; }
+    box.innerHTML = list.slice(0, 8).map((x, i) => `<button type="button" class="vb" data-vq="${esc(x.symbol)}" style="--i:${i}"><span class="top">${av(x)}<span style="min-width:0"><b>$${esc(x.symbol)}</b><span>${esc(x.name)} · ${x.isOg ? 'the original' : 'itself a vamp'}</span></span></span>
+      <span class="cnt"><b>${x.vamps}</b><span>vamp${x.vamps === 1 ? '' : 's'}${x.fresh ? ` · <i class="fresh">+${x.fresh} THIS HOUR</i>` : ''}</span></span>
+      ${bloodline(x.times || [], x.ogMc, 300, 34)}
+      <span class="ft"><span>newest <b>${x.newest == null ? '—' : x.newest < 1 ? 'just now' : mins(x.newest) + ' ago'}</b></span><span>mc <b>${usd(x.mc)}</b></span></span></button>`).join('');
+  }
+  function renderSugg(list) {
+    const pairs = list.filter(x => x.og && (x.isOg ? x.top : true)).slice(0, 4).map(x => ({ a: x.og, b: x.isOg ? x.top : x.mint, sym: x.symbol, img: x }));
+    $('#pSugg').hidden = !pairs.length;
+    $('#pSuggIn').innerHTML = pairs.map(p => `<button type="button" data-prop="${esc(p.a)}|${esc(p.b)}">${av(p.img)}$${esc(p.sym)} × its ${p.a === p.b ? 'twin' : 'biggest vamp'}</button>`).join('');
+  }
+  /* the marquee between the chapel and the scan: a dot-matrix sign of what's being copied right now */
+  let MARQ = 'SCANNING FOR VAMPS   ·   TWO COINS IN   ·   ONE COIN RUNS   ·   ';
+  function setMarquee(list) { if (list.length) MARQ = 'MOST VAMPED RIGHT NOW   ·   ' + list.slice(0, 10).map(x => `$${x.symbol.toUpperCase()} ${x.vamps} VAMPS${x.fresh ? ' (+' + x.fresh + ' THIS HOUR)' : ''}`).join('   ·   ') + '   ·   '; }
+  const marq = window.LED($('#marq'), {
+    cell: () => innerWidth < 700 ? 3 : 4, fit: 'self', fps: 40, ease: .45,
+    draw(g, gw, gh, t) {
+      const fs = gh * .78; g.font = `800 ${fs}px I, Inter, sans-serif`; g.textBaseline = 'middle'; try { g.letterSpacing = (fs * .08) + 'px'; } catch (e) { }
+      const w = g.measureText(MARQ).width || 1, x = -((t * gw * .07) % w);
+      g.fillStyle = 'rgb(232,232,232)'; for (let k = x; k < gw; k += w) g.fillText(MARQ, k, gh / 2 + 1);
+      return false;
+    },
+  });
+  /* launch preview */
+  function lPreview() {
+    const sym = $('#lSym').value.trim().toUpperCase(), name = $('#lName').value.trim(), desc = $('#lDesc').value.trim();
+    $('#lpSym').textContent = '$' + (sym || 'TICKER'); $('#lpName').textContent = name || 'your coin'; $('#lpDesc').textContent = desc || 'what it is, in one line';
+    const im = $('#lpImg'); if (IMG && im.tagName !== 'IMG') { const n = document.createElement('img'); n.className = 'av lg'; n.id = 'lpImg'; n.alt = ''; im.replaceWith(n); } if (IMG) $('#lpImg').src = IMG;
+  }
+  ['#lSym', '#lName', '#lDesc'].forEach(sel => $(sel).addEventListener('input', lPreview));
+  new MutationObserver(lPreview).observe($('#lDrop'), { attributes: true, attributeFilter: ['style'] });
+  /* the vows, each drawn as a tiny loop on the dot panel */
+  const VOW = {
+    1(g, w, h, t) { const k = (t % 4) / 4, cx = w / 2, cy = h / 2, r = h * .22; coin(g, cx, cy, r);
+      for (let i = 0; i < 7; i++) { const a = i / 7 * 6.28 + .4, b = ease.back((k - .1 - i * .05) / .15) * (1 - ease.out((k - .8) / .15)); if (b > 0) coin(g, cx + Math.cos(a) * w * .3, cy + Math.sin(a) * h * .33, r * .45 * b, .9); } },
+    2(g, w, h, t) { const k = (t % 3.6) / 3.6, d = w * .32 * (1 - ease.out(k / .5)) + w * .12, cy = h / 2, r = h * .24; coin(g, w / 2 - d, cy, r); coin(g, w / 2 + d, cy, r);
+      const ring = ease.back((k - .5) / .2) * (1 - ease.out((k - .9) / .1)); if (ring > 0) { g.lineWidth = 1.6; g.strokeStyle = '#fff'; g.beginPath(); g.arc(w / 2, cy - r * 1.3, r * .5 * ring, 0, 6.28); g.stroke(); } },
+    3(g, w, h, t) { const k = Math.min(1, (t % 4) / 2.6), bw = w * .78, x0 = (w - bw) / 2;
+      [[.34, .72], [.62, .61]].forEach(([y, f]) => { g.fillStyle = 'rgb(60,60,60)'; g.fillRect(x0, h * y - 2, bw, 4); g.fillStyle = '#fff'; g.fillRect(x0, h * y - 2, bw * f * ease.out(k), 4); });
+      g.fillStyle = 'rgb(160,160,160)'; g.fillRect(x0 + bw * .5, h * .18, 1, h * .64); },
+    4(g, w, h, t) { const k = (t % 3.4) / 3.4, bx = w * .66, cy = h / 2, R = h * .3, m = ease.out(k / .6), sx = w * .18 + (bx - w * .18) * m;
+      coin(g, bx, cy, R * (1 + (k > .6 && k < .8 ? Math.sin((k - .6) / .2 * Math.PI) * .12 : 0))); if (k < .62) coin(g, sx, cy, R * .55 * (1 - m * .6), 1); },
+  };
+  $$('.vled').forEach(c => { const f = VOW[c.dataset.v]; window.LED(c, { cell: 5, fit: 'self', fps: 30, ease: .3, draw(g, gw, gh, t) { f(g, gw, gh, t); return false; } }); });
 
   /* ---------------- start ---------------- */
   function refreshAll() { loadCeremonies(); loadTied(); if (S.drawer) openWedding(S.drawer); }
