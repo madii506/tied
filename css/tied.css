@@ -349,3 +349,56 @@ body.intro .radar{opacity:0}
 @media (max-width:1000px){.vbgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:600px){.vbgrid{grid-template-columns:1fr}.marq,.marq canvas{height:48px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}.rv{opacity:1;transform:none}}
+/* no grey scrollbars anywhere */
+html,body,*{scrollbar-width:none;-ms-overflow-style:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none;width:0;height:0;background:transparent}
+.vowrow{justify-content:flex-end}
+/* live from Solana */
+.chain{margin-top:34px}
+.chain>.lab{display:flex;align-items:center;gap:8px}
+.chgrid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px}
+.chfeed,.chhot{border:1px solid var(--ln);border-radius:var(--r);background:linear-gradient(180deg,#0a0a0a,#050505);overflow:hidden}
+.chhot{padding:16px 16px 12px}
+.chrow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--ln);animation:rin .5s var(--ease) both;animation-delay:calc(var(--i,0) * 35ms)}
+.chrow:last-child{border-bottom:0}
+.chrow:hover{background:var(--p1)}
+.chrow.new{animation:chnew 2.6s var(--ease)}
+@keyframes chnew{0%{background:#1d1d1d;transform:translateY(-8px);opacity:0}25%{opacity:1;transform:none}100%{background:transparent}}
+.chrow .nm{min-width:0}
+.chrow .nm b{display:block;font:700 14px I;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chrow .nm b span{font-weight:500;color:var(--mu)}
+.chrow .nm>span{display:block;font:500 12px M;color:var(--fa);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ogb{color:var(--tx);font:inherit;text-decoration:underline;text-decoration-color:var(--ln2);text-underline-offset:3px}
+.ogb:hover{text-decoration-color:var(--tx)}
+.chrow .acts{display:flex;align-items:center;gap:10px}
+.lks{display:flex;gap:8px}
+.lk{font:500 11.5px M;color:var(--mu);border-bottom:1px solid var(--ln2);padding-bottom:1px;margin-left:6px;transition:color .2s,border-color .2s}
+.lks .lk{margin:0}
+.lk:hover{color:var(--tx);border-color:var(--tx)}
+.hrow{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;padding:9px 0;border-bottom:1px solid var(--ln)}
+.hrow:last-child{border-bottom:0}
+.hrow .av{width:34px;height:34px;font-size:12px}
+.hrow .hn{min-width:0}
+.hrow .hn b{display:block;font:700 14px I;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .hn span{display:block;font:500 11.5px M;color:var(--fa)}
+.hrow .hc{font:800 20px I;color:var(--tx)}
+.hrow .hb{position:absolute;left:0;bottom:-1px;height:1px;background:var(--tx);opacity:.6;transition:width .8s var(--ease)}
+.hrow:hover .hn b{text-decoration:underline;text-underline-offset:3px}
+.chstat{margin-top:12px;font-size:11.5px;color:var(--fa);line-height:1.6}
+.chstat b{color:var(--tx);font-weight:500}
+.fresh.dim{background:transparent;color:var(--t2);border:1px solid var(--ln2)}
+.mvn{color:var(--tx);font-weight:500}
+/* swapped in, verified on chain */
+.mvd{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;margin-top:12px;font-size:11px;letter-spacing:.08em;color:var(--fa)}
+.mvd b{color:var(--tx);font-weight:500}
+.mvbar{display:block;height:4px;border-radius:99px;background:var(--p3);overflow:hidden}
+.mvbar i{display:block;height:100%;width:0;background:var(--tx);border-radius:99px;transition:width 1s var(--ease)}
+.mvbar.big{height:8px;margin-top:8px}
+.mvp{padding:14px;border:1px solid var(--ln2);border-radius:12px;background:#0b0b0b}
+.mvq{font-size:13.5px;color:var(--t2);margin:-4px 0 14px}
+.mvlog{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.mvlog a{display:grid;grid-template-columns:auto 1fr auto;gap:12px;font:500 12px M;color:var(--mu);padding:6px 0;border-top:1px solid var(--ln)}
+.mvlog a span:nth-child(2){color:var(--tx);text-align:right}
+.mvlog a:hover{color:var(--tx)}
+@media (max-width:1000px){.chgrid{grid-template-columns:1fr}}
+@media (max-width:700px){.chrow{grid-template-columns:34px minmax(0,1fr)}.chrow .av{width:34px;height:34px}.chrow .acts{grid-column:2;justify-content:flex-start}.mvd{grid-template-columns:1fr auto}.mvd .mvbar{display:none}}
