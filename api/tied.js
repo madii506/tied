@@ -243,7 +243,8 @@ R['GET radar'] = async () => cached('radar2', 55, async () => {
     try {
       const v = await vampsOf(c.symbol), og = v.og; if (!og) return;
       const fresh = v.vamps.filter(x => x.ago <= 60).length, newest = v.vamps.length ? Math.min(...v.vamps.map(x => x.ago)) : null;
-      list.push({ symbol: c.symbol, name: c.name, image: c.image || (og.mint === m ? og.image : null), mint: m, mc: c.mc, vamps: v.vamps.length, fresh, newest, og: og.mint, isOg: og.mint === m });
+      const big = v.vamps.slice().sort((x, y) => (y.mc || 0) - (x.mc || 0))[0];
+      list.push({ symbol: c.symbol, name: c.name, image: c.image || (og.mint === m ? og.image : null), mint: m, mc: c.mc, vamps: v.vamps.length, fresh, newest, og: og.mint, ogMc: og.mc, isOg: og.mint === m, top: big ? big.mint : null, topMc: big ? big.mc : 0, times: v.vamps.slice(0, 40).map(x => [x.after, x.ago, x.mc || 0]) });
     } catch (e) { }
   }));
   list.sort((a, b) => (b.fresh - a.fresh) || (b.vamps - a.vamps));
