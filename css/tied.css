@@ -402,3 +402,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .mvlog a:hover{color:var(--tx)}
 @media (max-width:1000px){.chgrid{grid-template-columns:1fr}}
 @media (max-width:700px){.chrow{grid-template-columns:34px minmax(0,1fr)}.chrow .av{width:34px;height:34px}.chrow .acts{grid-column:2;justify-content:flex-start}.mvd{grid-template-columns:1fr auto}.mvd .mvbar{display:none}}
+/* the loader line under the intro */
+.boot{position:absolute;left:50%;bottom:10vh;transform:translateX(-50%);width:min(540px,calc(100% - 48px));display:grid;grid-template-columns:1fr auto;gap:12px 14px;align-items:center;font-size:11px;letter-spacing:.22em;color:var(--mu);z-index:2;transition:opacity .9s var(--ease),transform .9s var(--ease);pointer-events:none}
+.boot .bt{grid-column:1/-1;text-align:center;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.boot .bt.in{animation:btin .55s var(--ease)}
+@keyframes btin{from{opacity:0;transform:translateY(6px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.boot .bbar{height:2px;background:var(--p3);border-radius:2px;overflow:hidden}
+.boot .bbar i{display:block;height:100%;width:0;background:var(--tx);box-shadow:0 0 8px #fff;transition:width .25s linear}
+.boot .bp{color:var(--tx);min-width:4ch;text-align:right}
+body:not(.intro) .boot{opacity:0;transform:translate(-50%,10px)}
+@media (max-width:700px){.boot{bottom:14vh;font-size:10px;letter-spacing:.16em}}
