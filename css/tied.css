@@ -81,6 +81,15 @@ body.intro .radar{opacity:0}
 .rin b{color:var(--tx);font-weight:500}
 .rin img{width:20px;height:20px;border-radius:50%;object-fit:cover;background:var(--p3)}
 .rin em{font-style:normal;color:var(--fa)}
+.fresh{font:500 10px M;letter-spacing:.12em;font-style:normal;color:#000;background:var(--tx);padding:2px 6px;border-radius:99px;vertical-align:2px}
+.rl{gap:8px}
+.rl b{color:var(--t2);font-weight:500}
+.pulse{width:7px;height:7px;border-radius:50%;background:#7cff9b;box-shadow:0 0 8px #7cff9b;animation:pu 1.6s ease-in-out infinite}
+@keyframes pu{50%{opacity:.3}}
+.vhead .live{display:flex;align-items:center;gap:8px}
+.vhead .live i{width:7px;height:7px;border-radius:50%;background:#7cff9b;box-shadow:0 0 8px #7cff9b;animation:pu 1.6s ease-in-out infinite}
+.vrow.new{animation:vnew 2.4s var(--ease)}
+@keyframes vnew{from{background:#1d2a20}}
 
 /* sections */
 .sec{position:relative;max-width:1240px;margin:0 auto;padding:150px 24px 0}
