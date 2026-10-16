@@ -45,6 +45,8 @@
     <div class="radar" id="radar" hidden><span class="rl mono"><i class="pulse"></i>VAMP SCAN · <b id="radarAge">live</b></span><div class="rt"><div class="rin" id="radarIn"></div></div></div>
   </section>
 
+  <div class="marq" aria-hidden="true"><canvas id="marq"></canvas></div>
+
   <section class="sec" id="vamps">
     <div class="shead"><span class="idx mono">01</span><h2 class="led-t" data-t="VAMPS">Vamps</h2><p class="sub">Every coin gets copied. Find the original and every vamp, in launch order.</p></div>
     <form class="find big rv" id="vFind" autocomplete="off">
@@ -52,6 +54,7 @@
       <button class="btn pri" type="submit">Search</button>
     </form>
     <div class="vout rv" id="vOut"></div>
+    <div class="vboard rv" id="vBoardWrap"><div class="lab mono"><i class="pulse"></i> LIVE VAMP SCAN · TRENDING NOW · <span id="vbAge">scanning…</span></div><div class="vbgrid" id="vBoard"><div class="empty" style="grid-column:1/-1">Scanning what's trending for copies…</div></div></div>
   </section>
 
   <section class="sec" id="ceremonies">
@@ -66,6 +69,7 @@
       <div class="knot" aria-hidden="true"><canvas id="knotC" width="120" height="120"></canvas></div>
       <div class="pc" id="pB"><label class="mono" for="pBin">COIN B</label><input id="pBin" placeholder="contract address" spellcheck="false"><div class="pcard" id="pBc"></div></div>
     </div>
+    <div class="sugg rv" id="pSugg" hidden><span class="lab mono" style="margin:0">TIE THEM TODAY</span><div id="pSuggIn"></div></div>
     <div class="terms rv" id="pTerms"></div>
     <div class="vowrow rv"><input id="pVow" maxlength="140" placeholder="your vow (optional, 140 characters)"><button class="btn pri" id="pGo" type="button" disabled>Propose</button></div>
     <p class="err" id="pErr"></p>
@@ -86,7 +90,8 @@
           <div id="lOut"></div>
         </div>
       </form>
-      <div class="singles"><div class="lab mono">BORN ON TIED</div><div id="sList" class="slist"><div class="empty">Nobody yet. Be the first single in the chapel.</div></div></div>
+      <div class="singles"><div class="lab mono">PREVIEW</div><div class="lprev" id="lPrev"><i class="av lg" id="lpImg">?</i><div><b id="lpSym">$TICKER</b><span id="lpName">your coin</span><p id="lpDesc">what it is, in one line</p></div><span class="born mono">BORN ON TIED</span></div>
+        <div class="lab mono" style="margin-top:22px">BORN ON TIED</div><div id="sList" class="slist"><div class="empty">Nobody yet. Be the first single in the chapel.</div></div></div>
     </div>
   </section>
 
@@ -99,10 +104,10 @@
   <section class="sec" id="how">
     <div class="shead"><span class="idx mono">06</span><h2 class="led-t" data-t="THE VOWS">The vows</h2></div>
     <ol class="vows rv">
-      <li><b class="mono">01</b><h3>Find the vamp</h3><p>Paste a ticker. The oldest coin is the original. Everything after it is a vamp.</p></li>
-      <li><b class="mono">02</b><h3>Propose</h3><p>Any holder of either coin proposes. The bigger coin keeps the name.</p></li>
-      <li><b class="mono">03</b><h3>Speak now</h3><p>24 hours. Holders sign I DO or OBJECT for free. Weight is your real balance.</p></li>
-      <li><b class="mono">04</b><h3>Move in</h3><p>Both sides say I do and it's tied. The smaller coin's holders move in with one swap.</p></li>
+      <li><canvas class="vled" data-v="1"></canvas><b class="mono">01</b><h3>Find the vamp</h3><p>Paste a ticker. The oldest coin is the original. Everything after it is a vamp.</p></li>
+      <li><canvas class="vled" data-v="2"></canvas><b class="mono">02</b><h3>Propose</h3><p>Any holder of either coin proposes. The bigger coin keeps the name.</p></li>
+      <li><canvas class="vled" data-v="3"></canvas><b class="mono">03</b><h3>Speak now</h3><p>24 hours. Holders sign I DO or OBJECT for free. Weight is your real balance.</p></li>
+      <li><canvas class="vled" data-v="4"></canvas><b class="mono">04</b><h3>Move in</h3><p>Both sides say I do and it's tied. The smaller coin's holders move in with one swap.</p></li>
     </ol>
     <div class="real rv">
       <div class="lab mono">WHAT'S REAL</div>
@@ -124,7 +129,6 @@
       <details><summary>Which coins can get tied?</summary><div class="ans"><p>Any two Solana tokens with a price, not just coins launched here. That's the point: vamps launch everywhere.</p></div></details>
       <details><summary>Who can vote?</summary><div class="ans"><p>Anyone holding either coin. Your weight is your share of that coin's supply, read from chain when you vote and again when the window closes.</p></div></details>
       <details><summary>What does it cost?</summary><div class="ans"><p>Signing in and voting are free signatures. Swaps and launches cost the normal network and pump.fun fees, nothing more.</p></div></details>
-      <details><summary>Is this financial advice?</summary><div class="ans"><p>No. Memecoins are volatile. Read the coin before you move in.</p></div></details>
     </div>
   </section>
 </main>
