@@ -61,18 +61,20 @@
 
   /* ---------------- the chapel: the intro plays once and becomes the hero ---------------- */
   const ease = { out: x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3), back: x => { x = Math.min(1, Math.max(0, x)); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); } };
-  const seen = (() => { try { return sessionStorage.getItem('td:intro') === '1'; } catch (e) { return false; } })();
-  const END = 4.1;                                     // the intro hands over to the hero here
-  let skipAt = null, offset = reduce ? END : seen ? 2.6 : 0, introDone = false;
+  // the loading intro, ~8 s: every launch pours in, a scan beam finds the copies, they get pulled together and tied
+  const TL = { feed0: .45, feed1: 2.9, beam0: 1.25, beam1: 3.55, pull0: 3.55, pull1: 4.95, thread: 4.95, tie: 5.35, txt: 6.05, END: 7.9 };
+  const END = TL.END;
+  let skipAt = null, offset = reduce ? END : 0, introDone = false;
   document.body.classList.add('intro');
   const led = $('#led');
-  // the vamps: copies that pop up around the original, then get pulled into it
   const rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
-  const VAMPS = Array.from({ length: 18 }, (_, i) => ({ a: i / 18 * Math.PI * 2 + rnd(i, 1) * .5, d: .55 + rnd(i, 2) * .5, r: .2 + rnd(i, 3) * .22, t: .55 + rnd(i, 4) * .75, w: rnd(i, 5) * 6.28 }));
   const GLYPH = 'ABCDEFGHJKLMNOPQRSUVWXYZ0123456789$#%&';
-  const coin = (g, x, y, r, a = 1) => { if (r <= .2 || a <= 0) return; g.globalAlpha = a; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.lineWidth = Math.min(1.7, r * .35); g.strokeStyle = 'rgb(118,118,118)'; g.stroke(); g.globalAlpha = 1; };
+  const coin = (g, x, y, r, a = 1) => { if (r <= .2 || a <= 0) return; g.globalAlpha = Math.min(1, a); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.lineWidth = Math.min(1.7, r * .35); g.strokeStyle = 'rgb(118,118,118)'; g.stroke(); g.globalAlpha = 1; };
+  const clamp = x => Math.min(1, Math.max(0, x)), inOut = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+  // the field of launches: one in five copies the left coin, one in five the right one, the rest are noise
+  const FIELD = Array.from({ length: 96 }, (_, i) => ({ u: .04 + rnd(i, 1) * .92, v: .07 + rnd(i, 2) * .8, born: TL.feed0 + rnd(i, 3) * (TL.feed1 - TL.feed0), s: .55 + rnd(i, 4) * .6, grp: i % 5 === 0 ? 1 : i % 5 === 1 ? 2 : 0, w: rnd(i, 5) * 6.28, d: rnd(i, 6) }));
   const hero = window.LED(led, {
-    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 50, ease: .22, idle: false,
+    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 50, ease: .24, idle: false,
     post(ctx, w, h, t0) {                                // the panel powers on from the centre
       const t = skipAt != null ? END : t0 + offset; if (t > 1.1) return;
       const k = ease.out(t / 1.05), r = Math.hypot(w, h) * .55 * k, gr = ctx.createRadialGradient(w / 2, h * .38, Math.max(1, r * .82), w / 2, h * .38, Math.max(2, r));
@@ -82,63 +84,91 @@
       const t = skipAt != null ? t0 - skipAt + END : t0 + offset;
       const mob = gw < 70, TW = Math.min(gw * (mob ? .58 : .27), gh * .36 * 2), TH = TW / 2, cx = gw / 2, cy = gh * (mob ? .29 : .31);
       const mx = A.mouse.x > -50 ? (A.mouse.x - cx) / gw : 0, rot = reduce ? 0 : Math.sin(t * .9) * .015 + mx * .1;
-      const R = TH * .42, span = Math.min(gw, gh) * (mob ? .42 : .36);
-      if (t < 2.75) {
-        // 1. one coin appears, then vamps pop up all around it
-        const grow = ease.back((t - .25) / .45), pull = (t - 1.45) / .6;
-        let fed = 0;
-        for (const v of VAMPS) {
-          const born = ease.back((t - v.t) / .3); if (born <= 0) continue;
-          const k = Math.min(1, Math.max(0, pull)), kk = k * k * k;
-          if (kk >= 1) { fed++; continue; }
-          const d = span * v.d * (1 - kk), jig = Math.sin(t * 9 + v.w) * .6 * (1 - k);
-          coin(g, cx + Math.cos(v.a + kk * 1.2) * d + jig, cy + Math.sin(v.a + kk * 1.2) * d * .62, R * v.r * born * (1 - kk * .6), .95);
+      const R = TH * .42, off = TW * .26, L = [cx - off, cy], Rt = [cx + off, cy], base = Math.max(1, Math.min(gw, gh) * .014);
+      if (t < TL.tie + .7) {
+        // 1. launches pour in all over the panel
+        const bx = (t - TL.beam0) / (TL.beam1 - TL.beam0) * (gw + 12) - 6;
+        let arrived = [0, 0, 0], total = [0, 0, 0];
+        const pts = [[], [], []];
+        for (const c of FIELD) {
+          const pop = ease.back((t - c.born) / .28); if (pop <= 0) continue;
+          let x = c.u * gw, y = c.v * gh, r = base * c.s * pop, a = c.grp ? 1 : .8;
+          const scanned = bx > x, since = scanned ? (bx - x) / (gw + 12) * (TL.beam1 - TL.beam0) : 0;
+          if (!c.grp) { if (scanned) a = .8 - .55 * clamp(since / .35); a *= 1 - clamp((t - TL.pull0) / .6); if (a <= .02) continue; }
+          else {
+            total[c.grp]++;
+            if (scanned && since < .45) { g.globalAlpha = (1 - since / .45) * .9; g.lineWidth = .8; g.strokeStyle = '#fff'; g.beginPath(); g.arc(x, y, r + since * 9, 0, 6.28); g.stroke(); g.globalAlpha = 1; }
+            if (scanned) r *= 1.25;
+            // 3. the copies get pulled into their coin
+            const k = inOut((t - TL.pull0 - c.d * .45) / .85);
+            if (k > 0) { const [tx, ty] = c.grp === 1 ? L : Rt, sw = (1 - k) * 1.1 * (c.grp === 1 ? 1 : -1); const dx = x - tx, dy = y - ty; x = tx + (dx * Math.cos(sw) - dy * Math.sin(sw)) * (1 - k); y = ty + (dx * Math.sin(sw) + dy * Math.cos(sw)) * (1 - k); r *= 1 - k * .7; }
+            if (k >= 1) { arrived[c.grp]++; continue; }
+            if (scanned) pts[c.grp].push([x, y, Math.min(1, since / .5)]);
+          }
+          if (!reduce && t < TL.pull0) y += Math.sin(t * 3 + c.w) * .25;
+          coin(g, x, y, r, a);
         }
-        // 2. the original eats every vamp, then splits into two halves that become the wings
-        const swell = 1 + fed / VAMPS.length * .35, split = ease.out((t - 2.05) / .45);
-        if (split <= 0) coin(g, cx, cy, R * grow * swell);
-        else {
-          const off = split * TW * .26;
-          coin(g, cx - off, cy, R * swell * (1 - split * .15), 1 - ease.out((t - 2.35) / .35));
-          coin(g, cx + off, cy, R * swell * (1 - split * .15), 1 - ease.out((t - 2.35) / .35));
-          const m = ease.out((t - 2.3) / .45); if (m > 0) drawTie(g, cx, cy, TW, { rot, wings: m, knot: ease.back((t - 2.45) / .3), rim: 1.7 });
+        // 2. found copies are linked to each other
+        // every found copy throws a thread to the coin it belongs to: two fans that pull tight
+        for (const grp of [1, 2]) { const [tx, ty] = grp === 1 ? L : Rt; g.lineWidth = .55; g.strokeStyle = '#fff'; for (const [x, y, k] of pts[grp]) { g.globalAlpha = .3 * (1 - clamp((t - TL.pull1 + .35) / .35)); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (tx - x) * k, y + (ty - y) * k); g.stroke(); } g.globalAlpha = 1; }
+        // the scan beam
+        if (t > TL.beam0 && t < TL.beam1 + .1) { const bw = Math.max(5, gw * .07), gr = g.createLinearGradient(bx - bw, 0, bx + 1, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.85, 'rgba(255,255,255,.16)'); gr.addColorStop(1, 'rgba(255,255,255,.9)'); g.fillStyle = gr; g.fillRect(bx - bw, 0, bw + 1, gh); }
+        // the two coins the copies feed, growing with every arrival
+        for (const grp of [1, 2]) {
+          const f = total[grp] ? arrived[grp] / total[grp] : 0, grow = ease.back((t - TL.pull0 - .25) / .4); if (grow <= 0) continue;
+          const [px, py] = grp === 1 ? L : Rt, fade = 1 - ease.out((t - TL.tie - .2) / .35);
+          coin(g, px, py, R * (.3 + .7 * f) * grow, fade);
         }
+        // 4. a thread pulls tight between them, and the knot snaps shut
+        if (t > TL.thread && t < TL.tie + .4) { const k = ease.out((t - TL.thread) / .35); g.globalAlpha = 1 - clamp((t - TL.tie) / .4); g.lineWidth = 1.2; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(L[0], cy); g.quadraticCurveTo(cx, cy + (1 - k) * R * 1.2, L[0] + (Rt[0] - L[0]) * k, cy); g.stroke(); g.globalAlpha = 1; }
+        const m = ease.out((t - TL.tie - .1) / .45); if (m > 0) drawTie(g, cx, cy, TW, { rot, wings: m, knot: ease.back((t - TL.tie - .2) / .3), rim: 1.7 });
       } else {
         const breathe = reduce ? 0 : Math.sin(t * 1.6) * .012, pulse = Math.max(0, Math.sin(t * 2.2 - 1)) ** 6;
         drawTie(g, cx, cy, TW * (1 + breathe), { rot, wings: 1, knot: 1 + pulse * .06, rim: 1.7, glow: pulse, flap: Math.max(0, Math.sin(t * 1.6)) * .02 });
       }
-      if (t >= 2.6 && !A._rip) { A._rip = true; A.ripple(cx, cy); }
-      // 3. the name decodes, letter by letter, out of random glyphs
+      if (t >= TL.tie + .35 && !A._rip) { A._rip = true; A.ripple(cx, cy); }
+      if (t > TL.tie + .3 && t < TL.tie + .7) { g.fillStyle = `rgba(255,255,255,${.22 * (1 - (t - TL.tie - .3) / .4)})`; g.fillRect(0, 0, gw, gh); }
+      // 5. the name decodes, letter by letter, out of random glyphs
       const fs = Math.min(gh * (mob ? .1 : .13), gw * (mob ? .2 : .11)), ty = gh * (mob ? .49 : .53);
       g.font = `800 ${fs}px I, Inter, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
       try { g.letterSpacing = '0px'; } catch (e) { }
       const word = 'TIED', gap = fs * .08, ws = [...word].map(c => g.measureText(c).width), total = ws.reduce((a, b) => a + b, 0) + gap * 3;
-      let x = cx - total / 2; const base = ty + fs * .36;
+      let x = cx - total / 2; const base2 = ty + fs * .36;
       for (let i = 0; i < 4; i++) {
-        const show = t - (2.75 + i * .1), settle = t - (3.05 + i * .17), mid = x + ws[i] / 2;
+        const show = t - (TL.txt + i * .1), settle = t - (TL.txt + .35 + i * .18), mid = x + ws[i] / 2;
         if (show > 0) {
           const ch = settle >= 0 ? word[i] : GLYPH[Math.floor(t * 18 + i * 7) % GLYPH.length];
-          g.fillStyle = settle >= 0 ? 'rgb(230,230,230)' : 'rgb(150,150,150)'; g.fillText(ch, mid, base);
-          if (settle >= 0) { g.lineWidth = .7; g.strokeStyle = 'rgb(120,120,120)'; g.strokeText(ch, mid, base); }
-          if (settle >= 0 && settle < .25) { g.fillStyle = `rgba(255,255,255,${1 - settle * 4})`; g.fillText(ch, mid, base); }
+          g.fillStyle = settle >= 0 ? 'rgb(230,230,230)' : 'rgb(150,150,150)'; g.fillText(ch, mid, base2);
+          if (settle >= 0) { g.lineWidth = .7; g.strokeStyle = 'rgb(120,120,120)'; g.strokeText(ch, mid, base2); }
+          if (settle >= 0 && settle < .25) { g.fillStyle = `rgba(255,255,255,${1 - settle * 4})`; g.fillText(ch, mid, base2); }
         }
         x += ws[i] + gap;
       }
-      if (t > 3.7) {                                   // a slow sweep of light across the word
+      if (t > TL.txt + 1.3) {                          // a slow sweep of light across the word
         const sw = ((t * .22) % 1.6 - .3) * gw, gr = g.createLinearGradient(sw - 10, 0, sw + 10, 0);
         gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-        g.fillStyle = gr; x = cx - total / 2; for (let i = 0; i < 4; i++) { g.fillText(word[i], x + ws[i] / 2, base); x += ws[i] + gap; }
+        g.fillStyle = gr; x = cx - total / 2; for (let i = 0; i < 4; i++) { g.fillText(word[i], x + ws[i] / 2, base2); x += ws[i] + gap; }
       }
+      if (!introDone) boot(t);
       if (!introDone && t >= END - .4) finishIntro();
       return false;
     },
   });
   requestAnimationFrame(() => led.classList.add('on'));
-  function finishIntro() { introDone = true; document.body.classList.remove('intro'); try { sessionStorage.setItem('td:intro', '1'); } catch (e) { } }
+  // the loader line: what is being read, with real numbers once they arrive. It only says 100% when the data is in.
+  let bootLast = '';
+  function boot(t) {
+    const lv = S.live, rd = S.radar, ready = !!(lv || rd), h1 = lv && lv.stats ? lv.stats.h1 : null, nv = rd ? rd.reduce((a, x) => a + (x.vamps || 0), 0) : null;
+    const cap = t < TL.beam0 ? 'CONNECTING TO SOLANA' : t < TL.pull0 ? (h1 ? `READING ${h1.toLocaleString()} LAUNCHES FROM THE LAST HOUR` : 'READING EVERY NEW LAUNCH') : t < TL.thread ? (nv ? `${nv.toLocaleString()} COPIES FOUND ON WHAT'S TRENDING` : 'FINDING THE COPIES') : t < TL.txt ? 'TYING THEM TOGETHER' : 'TIED';
+    if (cap !== bootLast) { bootLast = cap; const el = $('#bootT'); el.classList.remove('in'); void el.offsetWidth; el.textContent = cap; el.classList.add('in'); }
+    const p = Math.min(ready ? 100 : 97, Math.round(clamp(t / (END - .5)) * 100));
+    $('#bootBar').style.width = p + '%'; $('#bootP').textContent = p + '%';
+  }
+  function finishIntro() { introDone = true; document.body.classList.remove('intro'); }
   const skip = () => { if (!introDone && skipAt == null) skipAt = hero.t; };  // jumps straight to the finished hero
   ['wheel', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, skip, { passive: true, once: true }));
   $('#chapel').addEventListener('click', e => { if (!introDone && !e.target.closest('form,a,button')) skip(); });
-  setTimeout(() => { if (!introDone && skipAt == null) skipAt = hero.t; }, 7000);
+  setTimeout(() => { if (!introDone && skipAt == null) skipAt = hero.t; }, END * 1000 + 4000);
 
   /* ---------------- smooth scroll, reveal, nav ---------------- */
   let lenis = null;
@@ -269,7 +299,7 @@
   async function loadRadar() {
     try {
       const r = await api('radar'), list = (Array.isArray(r) ? r : r.list || []).filter(x => x.vamps > 0); radarAt = r.at || Date.now(); tickRadar();
-      S.radar = list; renderBoard(list); renderSugg(list); setMarquee(list);
+      S.radar = list; renderBoard(list); renderSugg(list);
       if (!list.length) return;
       const one = list.map(x => `<button type="button" data-vq="${esc(x.symbol)}">${av(x)}<b>$${esc(x.symbol)}</b><span>${x.vamps} vamp${x.vamps === 1 ? '' : 's'}</span>${x.fresh ? `<i class="fresh">+${x.fresh} this hour</i>` : ''}<em>${x.newest != null ? 'newest ' + (x.newest < 1 ? 'just now' : mins(x.newest) + ' ago') : ''}</em></button>`).join('');
       $('#radarIn').innerHTML = one + one; $('#radarIn').style.animationDuration = Math.max(30, list.length * 9) + 's'; $('#radar').hidden = false;
@@ -283,7 +313,7 @@
   let liveAt = 0, liveSeen = null;
   async function loadLive() {
     try {
-      const r = await api('live'); liveAt = r.read ? new Date(r.read).getTime() : r.at; tickLive();
+      const r = await api('live'); S.live = r; liveAt = r.read ? new Date(r.read).getTime() : r.at; tickLive();
       const first = liveSeen == null, fresh = first ? new Set() : new Set(r.feed.filter(x => !liveSeen.has(x.mint)).map(x => x.mint));
       liveSeen = new Set(r.feed.map(x => x.mint));
       $('#chFeed').innerHTML = r.feed.length ? r.feed.slice(0, 14).map((x, i) => `<div class="chrow${fresh.has(x.mint) ? ' new' : ''}" style="--i:${first ? i : 0}">${av(x)}<span class="nm"><b>$${esc(x.symbol)} <span>${esc(x.name)}</span></b><span>${x.og.trending ? 'copies trending' : 'copy #' + x.copy + ' of'} <button type="button" class="ogb" data-vq="${esc(x.og.symbol)}">$${esc(x.og.symbol)}</button> · <span data-ago="${esc(x.t)}">${agoS(x.t)}</span>${x.mc ? ' · ' + usd(x.mc) : ''}</span></span><span class="acts"><span class="lks">${links(x.mint)}</span><button class="btn sm" type="button" data-prop="${esc(x.og.mint)}|${esc(x.mint)}">Tie</button></span></div>`).join('')
@@ -556,18 +586,6 @@
     $('#pSugg').hidden = !pairs.length;
     $('#pSuggIn').innerHTML = pairs.map(p => `<button type="button" data-prop="${esc(p.a)}|${esc(p.b)}">${av(p.img)}$${esc(p.sym)} × its ${p.a === p.b ? 'twin' : 'biggest vamp'}</button>`).join('');
   }
-  /* the marquee between the chapel and the scan: a dot-matrix sign of what's being copied right now */
-  let MARQ = 'SCANNING FOR VAMPS   ·   TWO COINS IN   ·   ONE COIN RUNS   ·   ';
-  function setMarquee(list) { if (list.length) MARQ = 'MOST VAMPED RIGHT NOW   ·   ' + list.slice(0, 10).map(x => `$${x.symbol.toUpperCase()} ${x.vamps} VAMPS${x.fresh ? ' (+' + x.fresh + ' THIS HOUR)' : ''}`).join('   ·   ') + '   ·   '; }
-  const marq = window.LED($('#marq'), {
-    cell: () => innerWidth < 700 ? 3 : 4, fit: 'self', fps: 40, ease: .45,
-    draw(g, gw, gh, t) {
-      const fs = gh * .78; g.font = `800 ${fs}px I, Inter, sans-serif`; g.textBaseline = 'middle'; try { g.letterSpacing = (fs * .08) + 'px'; } catch (e) { }
-      const w = g.measureText(MARQ).width || 1, x = -((t * gw * .07) % w);
-      g.fillStyle = 'rgb(232,232,232)'; for (let k = x; k < gw; k += w) g.fillText(MARQ, k, gh / 2 + 1);
-      return false;
-    },
-  });
   /* launch preview */
   function lPreview() {
     const sym = $('#lSym').value.trim().toUpperCase(), name = $('#lName').value.trim(), desc = $('#lDesc').value.trim();
