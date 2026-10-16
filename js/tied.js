@@ -15,6 +15,9 @@
   const pad = n => String(n).padStart(2, '0');
   const left = t => { const s = Math.max(0, Math.floor((new Date(t) - Date.now()) / 1000)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`; };
   const av = (c, lg) => c && c.image ? `<img class="av${lg ? ' lg' : ''}" src="${esc(c.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'av${lg ? ' lg' : ''}',textContent:'${esc(((c && c.symbol) || '?')[0])}'}))">` : `<i class="av${lg ? ' lg' : ''}">${esc(((c && c.symbol) || '?')[0])}</i>`;
+  const agoS = t => { const s = Math.max(0, Math.round((Date.now() - new Date(t)) / 1000)); return s < 60 ? s + 's ago' : s < 3600 ? Math.floor(s / 60) + 'm ago' : Math.floor(s / 3600) + 'h ago'; };
+  const amtF = v => v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v >= 1 ? v.toFixed(2) : v.toPrecision(3);
+  const links = m => `<a class="lk" href="https://axiom.trade/meme/${esc(m)}?chain=sol" target="_blank" rel="noopener">Axiom</a><a class="lk" href="https://pump.fun/coin/${esc(m)}" target="_blank" rel="noopener">pump</a><a class="lk" href="https://dexscreener.com/solana/${esc(m)}" target="_blank" rel="noopener">dex</a>`;
   const say = t => { $('#srlive').textContent = t; };
   function toast(t, ms = 2600) { $$('.toast').forEach(x => x.remove()); const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); say(t); setTimeout(() => d.remove(), ms); }
   const S = { tok: store.get('td:tok'), wallet: store.get('td:w'), prov: null, cfg: { windowHours: 24, minTurnout: 1 } };
@@ -276,6 +279,25 @@
   setInterval(tickRadar, 1000);
   document.addEventListener('click', e => { const b = e.target.closest('[data-vq]'); if (!b) return; $('#vQ').value = b.dataset.vq; findVamps(b.dataset.vq); goTo($('#vamps')); });
 
+  /* ---------------- live from Solana: every new pump.fun launch that copies a ticker ---------------- */
+  let liveAt = 0, liveSeen = null;
+  async function loadLive() {
+    try {
+      const r = await api('live'); liveAt = r.read ? new Date(r.read).getTime() : r.at; tickLive();
+      const first = liveSeen == null, fresh = first ? new Set() : new Set(r.feed.filter(x => !liveSeen.has(x.mint)).map(x => x.mint));
+      liveSeen = new Set(r.feed.map(x => x.mint));
+      $('#chFeed').innerHTML = r.feed.length ? r.feed.slice(0, 14).map((x, i) => `<div class="chrow${fresh.has(x.mint) ? ' new' : ''}" style="--i:${first ? i : 0}">${av(x)}<span class="nm"><b>$${esc(x.symbol)} <span>${esc(x.name)}</span></b><span>${x.og.trending ? 'copies trending' : 'copy #' + x.copy + ' of'} <button type="button" class="ogb" data-vq="${esc(x.og.symbol)}">$${esc(x.og.symbol)}</button> · <span data-ago="${esc(x.t)}">${agoS(x.t)}</span>${x.mc ? ' · ' + usd(x.mc) : ''}</span></span><span class="acts"><span class="lks">${links(x.mint)}</span><button class="btn sm" type="button" data-prop="${esc(x.og.mint)}|${esc(x.mint)}">Tie</button></span></div>`).join('')
+        : `<div class="empty">No copies in the latest launches yet. Every new pump.fun coin is being read; vamps land here the moment they launch.</div>`;
+      const max = Math.max(1, ...r.hot.map(h => h.h1));
+      $('#chHot').innerHTML = r.hot.length ? r.hot.map(h => `<button type="button" class="hrow" data-vq="${esc(h.symbol)}">${av(h)}<span class="hn"><b>$${esc(h.symbol)}${h.trending ? ' <i class="fresh">TRENDING</i>' : ''}</b><span>${h.h1} this hour · ${h.n} in 24h</span></span><span class="hc">${h.h1}</span><i class="hb" style="width:${h.h1 / max * 100}%"></i></button>`).join('') : `<div class="empty">No ticker launched twice in the last hour.</div>`;
+      const st = r.stats || {};
+      $('#chStat').innerHTML = `<b>${(st.h1 || 0).toLocaleString()}</b> launches read from Solana in the last hour · <b>${(st.m10 || 0).toLocaleString()}</b> in the last 10 min`;
+      if (fresh.size && !document.hidden && $('#vamps').getBoundingClientRect().top < innerHeight) say(`${fresh.size} new vamp${fresh.size === 1 ? '' : 's'} just launched`);
+    } catch (e) { if (liveSeen == null) $('#chFeed').innerHTML = `<div class="empty">Could not read the chain right now. Trying again in 20 seconds.</div>`; }
+  }
+  function tickLive() { const el = $('#chAge'); if (el && liveAt) { const s = Math.max(0, Math.round((Date.now() - liveAt) / 1000)); el.textContent = 'read ' + (s < 3 ? 'just now' : s + 's ago'); } $$('[data-ago]').forEach(x => { x.textContent = agoS(x.dataset.ago); }); }
+  setInterval(tickLive, 1000);
+
   /* ---------------- vamps ---------------- */
   async function findVamps(q, quiet) {
     q = String(q || '').trim(); if (!q) return; const out = $('#vOut');
@@ -286,10 +308,10 @@
       if (!r.og) { out.innerHTML = `<div class="empty"><b>Nothing found for ${esc(q)}.</b><br>Try the exact ticker or paste the contract address.</div>`; return; }
       const o = r.og;
       out.innerHTML = `<div class="og">${av(o, true)}<div><h3>$${esc(o.symbol)} <span style="color:var(--mu);font-weight:500;font-size:16px">${esc(o.name)}</span></h3><div class="m mono"><span>launched <b>${ago(o.created)}</b></span><span>mc <b>${usd(o.mc)}</b></span><span>vol 24h <b>${usd(o.vol)}</b></span><span class="mono">${esc(short(o.mint))}</span></div></div>
-        <div class="acts"><a class="btn sm" href="${esc(o.url || 'https://dexscreener.com/solana/' + o.mint)}" target="_blank" rel="noopener">Chart</a><button class="btn sm" type="button" data-copy="${esc(o.mint)}">Copy CA</button></div></div>
+        <div class="acts"><a class="btn sm" href="https://axiom.trade/meme/${esc(o.mint)}?chain=sol" target="_blank" rel="noopener">Axiom</a><a class="btn sm" href="${esc(o.url || 'https://dexscreener.com/solana/' + o.mint)}" target="_blank" rel="noopener">Chart</a><button class="btn sm" type="button" data-copy="${esc(o.mint)}">Copy CA</button></div></div>
         ${r.vamps.length ? `<div class="bline">${bloodline(r.vamps.map(v => [v.after, v.ago, v.mc]), o.mc, 900, 84)}<div class="ft"><span>THE ORIGINAL · launched ${ago(o.created)}</span><span>EACH DOT IS A VAMP · SIZE = MARKET CAP · WHITE = THIS HOUR</span><span>NOW</span></div></div>` : ''}
-        <div class="vhead"><span><b>${r.vamps.length}</b> VAMP${r.vamps.length === 1 ? '' : 'S'} · <b>${r.vamps.filter(v => v.ago <= 60).length}</b> THIS HOUR · ${usd(r.vamps.reduce((a, v) => a + (v.vol || 0), 0))} VOLUME</span><span class="live"><i></i>RESCANS EVERY MINUTE · <b id="vAge">just now</b></span></div>
-        ${r.vamps.length ? `<div class="vlist">${r.vamps.map((v, i) => `<div class="vrow${before.size && !before.has(v.mint) ? ' new' : ''}" style="--i:${quiet ? 0 : Math.min(i, 20)}"><span class="n">#${i + 1}</span>${av(v)}<span class="nm"><b>$${esc(v.symbol)} · ${esc(v.name)}${v.ago <= 60 ? ' <i class="fresh">NEW</i>' : ''}</b><span>${esc(short(v.mint))} · launched ${v.ago < 1 ? 'just now' : mins(v.ago) + ' ago'}</span></span><span class="h-a">+${mins(v.after)}</span><span class="h-m">${usd(v.mc)}</span><span class="h-v">${usd(v.vol)} vol</span><span class="acts"><button class="btn sm" type="button" data-prop="${esc(o.mint)}|${esc(v.mint)}">Propose</button><button class="btn sm" type="button" data-mv="${esc(v.mint)}|${esc(o.mint)}">Move in</button></span></div>`).join('')}</div>` : `<div class="empty"><b>No vamps.</b> This one is the only one.</div>`}`;
+        <div class="vhead"><span><b>${r.vamps.length}</b> VAMP${r.vamps.length === 1 ? '' : 'S'} · <b>${r.vamps.filter(v => v.ago <= 60).length}</b> THIS HOUR · ${usd(r.vamps.reduce((a, v) => a + (v.vol || 0), 0))} VOLUME${r.chain ? ` · <b>${r.chain}</b> READ FROM CHAIN` : ''}</span><span class="live"><i></i>RESCANS EVERY MINUTE · <b id="vAge">just now</b></span></div>
+        ${r.vamps.length ? `<div class="vlist">${r.vamps.map((v, i) => `<div class="vrow${before.size && !before.has(v.mint) ? ' new' : ''}" style="--i:${quiet ? 0 : Math.min(i, 20)}"><span class="n">#${i + 1}</span>${av(v)}<span class="nm"><b>$${esc(v.symbol)} · ${esc(v.name)}${v.ago <= 60 ? ' <i class="fresh">NEW</i>' : ''}${v.wed ? ` <i class="fresh${v.wed.status === 'tied' ? '' : ' dim'}">${v.wed.status === 'tied' ? 'TIED INTO $' + esc(o.symbol) : v.wed.status === 'called_off' ? 'NOT TIED' : 'VOTING'}</i>` : ''}</b><span>${esc(short(v.mint))} · ${v.ago < 1 ? 'just now' : mins(v.ago) + ' ago'}${v.moved ? ` · <b class="mvn">${v.moved.wallets} swapped in</b>` : ''} · ${links(v.mint)}</span></span><span class="h-a">+${mins(v.after)}</span><span class="h-m">${usd(v.mc)}</span><span class="h-v">${usd(v.vol)} vol</span><span class="acts"><button class="btn sm" type="button" data-prop="${esc(o.mint)}|${esc(v.mint)}">Tie</button><button class="btn sm" type="button" data-mv="${esc(v.mint)}|${esc(o.mint)}">Swap in</button></span></div>`).join('')}</div>` : `<div class="empty"><b>No vamps.</b> This one is the only one.</div>`}`;
       if (quiet && before.size) { const n = r.vamps.filter(v => !before.has(v.mint)).length; if (n) toast(`${n} new vamp${n === 1 ? '' : 's'} of $${r.og.symbol} just launched`); }
     } catch (e) { if (!quiet) out.innerHTML = `<div class="empty"><b>Search failed.</b><br>${esc(e.message)}</div>`; }
   }
@@ -317,18 +339,18 @@
   let pT = {}; ['A', 'B'].forEach(k => $(`#p${k}in`).addEventListener('input', () => { clearTimeout(pT[k]); pT[k] = setTimeout(() => loadSide(k), 380); }));
   function renderTerms() {
     const A = P.A, B = P.B, box = $('#pTerms'), go = $('#pGo'); S.pTied = !!(A && B); knotLed.wake();
-    if (!A || !B || A.mint === B.mint) { box.classList.remove('show'); go.disabled = true; $('#pErr').textContent = A && B ? 'A coin cannot marry itself.' : ''; return; }
+    if (!A || !B || A.mint === B.mint) { box.classList.remove('show'); go.disabled = true; $('#pErr').textContent = A && B ? 'Pick two different coins.' : ''; return; }
     const [big, small] = (A.mc || 0) >= (B.mc || 0) ? [A, B] : [B, A], tot = (big.mc || 0) + (small.mc || 0) || 1, sb = (big.mc || 0) / tot * 100;
     const rate = small.price && big.price ? small.price / big.price : null;
-    box.innerHTML = `<div class="tsay">$${esc(big.symbol)} keeps the name. $${esc(small.symbol)} moves in.</div>
+    box.innerHTML = `<div class="tsay">$${esc(big.symbol)} stays. $${esc(small.symbol)} holders swap into it.</div>
       <div class="share"><i style="width:${sb}%"></i><i style="width:${100 - sb}%"></i></div>
-      <div class="tline"><span>$${esc(big.symbol)} <b>${sb.toFixed(1)}%</b> of the household</span><span>$${esc(small.symbol)} <b>${(100 - sb).toFixed(1)}%</b></span></div>
-      <div class="tline" style="margin-top:8px"><span>rate today <b>1 ${esc(small.symbol)} ≈ ${rate ? (rate >= 1 ? rate.toFixed(4) : rate.toPrecision(4)) : '—'} ${esc(big.symbol)}</b></span><span>speak now: <b>${S.cfg.windowHours}h</b> · both sides need a majority and ${S.cfg.minTurnout}% of supply saying I do</span></div>`;
+      <div class="tline"><span>$${esc(big.symbol)} <b>${sb.toFixed(1)}%</b> of the total</span><span>$${esc(small.symbol)} <b>${(100 - sb).toFixed(1)}%</b></span></div>
+      <div class="tline" style="margin-top:8px"><span>rate today <b>1 ${esc(small.symbol)} ≈ ${rate ? (rate >= 1 ? rate.toFixed(4) : rate.toPrecision(4)) : '—'} ${esc(big.symbol)}</b></span><span>vote: <b>${S.cfg.windowHours}h</b> · both sides need a majority and ${S.cfg.minTurnout}% of supply voting yes</span></div>`;
     box.classList.add('show'); go.disabled = false; $('#pErr').textContent = '';
   }
   $('#pGo').addEventListener('click', () => needAuth(async () => {
     const btn = $('#pGo'); btn.disabled = true; $('#pErr').textContent = '';
-    try { const r = await api('propose', { a: P.A.mint, b: P.B.mint, vow: $('#pVow').value }); toast('Proposed. The chapel is open for 24 hours.'); $('#pVow').value = ''; await loadCeremonies(); openWedding(r.id); }
+    try { const r = await api('propose', { a: P.A.mint, b: P.B.mint }); toast('Tie started. Voting is open for 24 hours.'); await loadCeremonies(); openWedding(r.id); }
     catch (e) { $('#pErr').textContent = e.message; if (e.data && e.data.id) openWedding(e.data.id); }
     btn.disabled = false;
   }));
@@ -338,19 +360,20 @@
     const T = w.tally || { a: {}, b: {} }, row = (c, t) => { const y = t.yes || 0, n = t.no || 0, scale = Math.max(4, w.minTurnout * 3, y + n); return `<div class="bar"><span>$${esc(c.symbol)}</span><span class="tr"><i class="yes" style="width:${Math.min(100, y / scale * 100)}%"></i><i class="no" style="width:${Math.min(100, n / scale * 100)}%"></i><i class="tick" style="left:${Math.min(100, w.minTurnout / scale * 100)}%"></i></span><span class="v">${pct(y)} · ${pct(n)}</span></div>`; };
     return `<div class="bars">${row(w.a, T.a || {})}${row(w.b, T.b || {})}</div>`;
   }
-  const pairHtml = w => `<div class="pair"><span class="c">${av(w.a)}<span><b>$${esc(w.a.symbol)}</b><span>${usd(w.a.mc)} at the altar</span></span></span><span class="x">${tieSvg(34)}</span><span class="c"><span><b>$${esc(w.b.symbol)}</b><span>${usd(w.b.mc)} moves in</span></span>${av(w.b)}</span></div>`;
+  const movedLine = w => { const m = w.moved || {}; return `<div class="mvd mono"><span>SWAPPED IN</span><span class="mvbar"><i style="width:${Math.min(100, (m.pct || 0) * 4)}%"></i></span><span><b>${m.wallets || 0}</b> wallet${m.wallets === 1 ? '' : 's'} · <b>${pct(m.pct || 0)}</b> of $${esc(w.b.symbol)}</span></div>`; };
+  const pairHtml = w => `<div class="pair"><span class="c">${av(w.a)}<span><b>$${esc(w.a.symbol)}</b><span>${usd(w.a.mc)} · stays</span></span></span><span class="x">${tieSvg(34)}</span><span class="c"><span><b>$${esc(w.b.symbol)}</b><span>${usd(w.b.mc)} · swaps in</span></span>${av(w.b)}</span></div>`;
   async function loadCeremonies() {
     const box = $('#cList');
     try {
       const r = await api('weddings?status=open'); S.open = r.weddings;
-      box.innerHTML = r.weddings.length ? r.weddings.map(w => `<div class="wcard" data-w="${w.id}">${pairHtml(w)}<div class="clock"><span>SPEAK NOW · ${w.voters} voice${w.voters === 1 ? '' : 's'}</span><b data-left="${esc(w.closes)}">${left(w.closes)}</b></div>${bars(w)}${w.vow ? `<p class="vowq">“${esc(w.vow)}”</p>` : ''}<div class="vote"><button class="btn sm${w.mine && w.mine.choice === 'do' ? ' on' : ''}" type="button" data-vote="${w.id}|do">I do</button><button class="btn sm${w.mine && w.mine.choice === 'object' ? ' on' : ''}" type="button" data-vote="${w.id}|object">Object</button></div></div>`).join('')
-        : `<div class="empty" style="grid-column:1/-1"><b>No one at the altar.</b><br>Find a vamp and propose the first wedding.</div>`;
-    } catch (e) { if (!S.open) box.innerHTML = `<div class="empty" style="grid-column:1/-1"><b>The chapel is closed.</b><br>${esc(e.message)}</div>`; }
+      box.innerHTML = r.weddings.length ? r.weddings.map(w => `<div class="wcard" data-w="${w.id}">${pairHtml(w)}<div class="clock"><span>VOTING · ${w.voters} vote${w.voters === 1 ? '' : 's'}</span><b data-left="${esc(w.closes)}">${left(w.closes)}</b></div>${bars(w)}${movedLine(w)}<div class="vote"><button class="btn sm${w.mine && w.mine.choice === 'do' ? ' on' : ''}" type="button" data-vote="${w.id}|do">Yes</button><button class="btn sm${w.mine && w.mine.choice === 'object' ? ' on' : ''}" type="button" data-vote="${w.id}|object">No</button></div></div>`).join('')
+        : `<div class="empty" style="grid-column:1/-1"><b>No open votes.</b><br>Find a vamp and start the first tie.</div>`;
+    } catch (e) { if (!S.open) box.innerHTML = `<div class="empty" style="grid-column:1/-1"><b>Could not load votes.</b><br>${esc(e.message)}</div>`; }
   }
   setInterval(() => $$('[data-left]').forEach(el => { el.textContent = left(el.dataset.left); }), 1000);
   async function vote(id, choice) {
     needAuth(async () => {
-      try { const r = await api('vote', { id, choice }); toast(choice === 'do' ? `I do. Counted at ${pct(Math.max(r.a, r.b))} of supply.` : `Objection counted at ${pct(Math.max(r.a, r.b))} of supply.`); loadCeremonies(); if (S.drawer === id) openWedding(id); }
+      try { const r = await api('vote', { id, choice }); toast(`${choice === 'do' ? 'Yes' : 'No'} counted at ${pct(Math.max(r.a, r.b))} of supply.`); loadCeremonies(); if (S.drawer === id) openWedding(id); }
       catch (e) { toast(e.message, 4000); }
     });
   }
@@ -365,8 +388,8 @@
     const box = $('#tList');
     try {
       const r = await api('weddings?status=' + tSt);
-      box.innerHTML = r.weddings.length ? r.weddings.map(w => { const t = w.tally || { a: {}, b: {} }; return `<button type="button" class="trow" data-w="${w.id}"><span class="mono">#${w.id}</span>${pairHtml(w)}<span class="h-d">${new Date(w.closed || w.closes).toLocaleDateString()}</span><span class="h-c">I do ${pct((t.a || {}).yes || 0)} · ${pct((t.b || {}).yes || 0)}</span><span><span class="st ${w.status === 'tied' ? 'tied' : ''}">${w.status === 'tied' ? 'TIED' : 'CALLED OFF'}</span></span></button>`; }).join('')
-        : `<div class="empty">${tSt === 'tied' ? '<b>No weddings yet.</b><br>The first couple goes here, with its certificate.' : 'Nothing called off.'}</div>`;
+      box.innerHTML = r.weddings.length ? r.weddings.map(w => { const t = w.tally || { a: {}, b: {} }; return `<button type="button" class="trow" data-w="${w.id}"><span class="mono">#${w.id}</span>${pairHtml(w)}<span class="h-d">${new Date(w.closed || w.closes).toLocaleDateString()}</span><span class="h-c">${w.status === 'tied' ? `swapped in ${pct((w.moved || {}).pct || 0)} · ${(w.moved || {}).wallets || 0}w` : `yes ${pct((t.a || {}).yes || 0)} · ${pct((t.b || {}).yes || 0)}`}</span><span><span class="st ${w.status === 'tied' ? 'tied' : ''}">${w.status === 'tied' ? 'TIED' : 'NOT TIED'}</span></span></button>`; }).join('')
+        : `<div class="empty">${tSt === 'tied' ? '<b>Nothing tied yet.</b><br>The first tie lands here.' : 'Nothing here yet.'}</div>`;
     } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   }
   $('#tTabs').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (!b) return; tSt = b.dataset.st; $$('#tTabs button').forEach(x => x.classList.toggle('on', x === b)); loadTied(); });
@@ -379,53 +402,78 @@
   addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('on') && !$('.modal')) closeDrawer(); });
   async function openWedding(id) {
     S.drawer = id; try { history.replaceState(null, '', '#w=' + id); } catch (e) { }
-    if (!drawer.classList.contains('on')) openDrawer(`<div class="empty">Opening the chapel doors…</div>`);
+    if (!drawer.classList.contains('on')) openDrawer(`<div class="empty">Loading…</div>`);
     try {
       const r = await api('wedding?id=' + id), w = r.wedding; if (S.drawer !== id) return;
-      const st = w.status === 'open' || w.status === 'closing' ? `<span class="st">SPEAK NOW</span>` : w.status === 'tied' ? `<span class="st tied">TIED</span>` : `<span class="st">CALLED OFF</span>`;
-      dPanel.innerHTML = `<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">WEDDING #${w.id} · proposed by ${esc(w.by)}</span><button class="dclose" type="button" data-close aria-label="Close">×</button></div>
+      const st = w.status === 'open' || w.status === 'closing' ? `<span class="st">VOTING</span>` : w.status === 'tied' ? `<span class="st tied">TIED</span>` : `<span class="st">NOT TIED</span>`;
+      dPanel.innerHTML = `<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">TIE #${w.id} · started by ${esc(w.by)}</span><button class="dclose" type="button" data-close aria-label="Close">×</button></div>
         ${pairHtml(w)}
-        <div class="dsec" style="margin-top:18px">${st} ${w.status === 'open' ? `<span class="mono" style="color:var(--mu);font-size:12px;margin-left:8px">closes in <b data-left="${esc(w.closes)}" style="color:var(--tx);font-weight:500">${left(w.closes)}</b></span>` : `<span class="mono" style="color:var(--mu);font-size:12px;margin-left:8px">${new Date(w.closed || w.closes).toLocaleString()}</span>`}
-          ${w.vow ? `<p class="vowq" style="margin-top:14px">“${esc(w.vow)}”</p>` : ''}</div>
-        <div class="dsec"><h4>THE VOTE · % OF EACH SUPPLY</h4>${bars(w)}<p class="mono" style="color:var(--fa);font-size:11.5px;margin-top:10px">white: I do · grey: object · red line: ${w.minTurnout}% needed</p>
-          ${w.status === 'open' ? `<div class="vote" style="margin-top:14px"><button class="btn${w.mine && w.mine.choice === 'do' ? ' on' : ''}" type="button" data-vote="${w.id}|do">I do</button><button class="btn${w.mine && w.mine.choice === 'object' ? ' on' : ''}" type="button" data-vote="${w.id}|object">Object</button></div><p class="mono" style="color:var(--fa);font-size:11.5px;margin-top:10px">free signature · weight = your balance, read again when the window closes</p>` : ''}</div>
-        ${w.status === 'tied' ? `<div class="dsec"><h4>CERTIFICATE</h4><div class="cert"><canvas id="certC" width="1200" height="630"></canvas></div><div class="vote" style="margin-top:12px"><button class="btn sm" type="button" id="certDl">Download</button><a class="btn sm" target="_blank" rel="noopener" href="https://x.com/intent/tweet?text=${encodeURIComponent(`$${w.a.symbol} and $${w.b.symbol} just got TIED. two coins. one knot.\n${location.origin}/#w=${w.id}`)}">Share on X</a></div></div>` : ''}
-        <div class="dsec"><h4>MOVE IN · $${esc(w.b.symbol)} → $${esc(w.a.symbol)}</h4><div id="mvBox"></div></div>
-        <div class="dsec"><h4>VOICES · ${w.voters}</h4><div class="vlog">${r.votes.length ? r.votes.map(v => `<div><span>${esc(v.wallet)}</span><span class="${v.choice === 'do' ? 'do' : ''}">${v.choice === 'do' ? 'I DO' : 'OBJECT'}</span><span>${v.a > 0 ? pct(v.a) + ' ' + esc(w.a.symbol) : ''} ${v.b > 0 ? pct(v.b) + ' ' + esc(w.b.symbol) : ''}</span></div>`).join('') : '<span>No one has spoken yet.</span>'}</div></div>`;
-      mountMoveIn($('#mvBox'), w.b, w.a);
+        <div class="dsec" style="margin-top:18px">${st} ${w.status === 'open' ? `<span class="mono" style="color:var(--mu);font-size:12px;margin-left:8px">closes in <b data-left="${esc(w.closes)}" style="color:var(--tx);font-weight:500">${left(w.closes)}</b></span>` : `<span class="mono" style="color:var(--mu);font-size:12px;margin-left:8px">${new Date(w.closed || w.closes).toLocaleString()}</span>`}</div>
+        <div class="dsec"><h4>THE VOTE · % OF EACH SUPPLY</h4>${bars(w)}<p class="mono" style="color:var(--fa);font-size:11.5px;margin-top:10px">white: yes · grey: no · line: ${w.minTurnout}% needed</p>
+          ${w.status === 'open' ? `<div class="vote" style="margin-top:14px"><button class="btn${w.mine && w.mine.choice === 'do' ? ' on' : ''}" type="button" data-vote="${w.id}|do">Yes</button><button class="btn${w.mine && w.mine.choice === 'object' ? ' on' : ''}" type="button" data-vote="${w.id}|object">No</button></div><p class="mono" style="color:var(--fa);font-size:11.5px;margin-top:10px">free signature · weight = your balance, read again when the window closes</p>` : ''}</div>
+        ${w.status === 'tied' ? `<div class="dsec"><h4>SHARE CARD</h4><div class="cert"><canvas id="certC" width="1200" height="630"></canvas></div><div class="vote" style="margin-top:12px"><button class="btn sm" type="button" id="certDl">Download</button><a class="btn sm" target="_blank" rel="noopener" href="https://x.com/intent/tweet?text=${encodeURIComponent(`$${w.a.symbol} and $${w.b.symbol} just got TIED. two coins. one knot.\n${location.origin}/#w=${w.id}`)}">Share on X</a></div></div>` : ''}
+        <div class="dsec"><h4>TIE YOUR BAG · $${esc(w.b.symbol)} → $${esc(w.a.symbol)}</h4>${w.status === 'tied' ? `<p class="mvq">Tied. Holders of $${esc(w.b.symbol)} swap into $${esc(w.a.symbol)} with one click. Every swap is read back from Solana before it counts.</p>` : ''}<div id="mvBox"></div></div>
+        <div class="dsec"><h4>VOTES · ${w.voters}</h4><div class="vlog">${r.votes.length ? r.votes.map(v => `<div><span>${esc(v.wallet)}</span><span class="${v.choice === 'do' ? 'do' : ''}">${v.choice === 'do' ? 'YES' : 'NO'}</span><span>${v.a > 0 ? pct(v.a) + ' ' + esc(w.a.symbol) : ''} ${v.b > 0 ? pct(v.b) + ' ' + esc(w.b.symbol) : ''}</span></div>`).join('') : '<span>No votes yet.</span>'}</div></div>`;
+      mountMoveIn($('#mvBox'), w.b, w.a, () => { if (S.drawer === id) { loadCeremonies(); loadTied(); } });
       if (w.status === 'tied') drawCert($('#certC'), w);
     } catch (e) { if (S.drawer === id) dPanel.innerHTML = `<div class="dtop"><span></span><button class="dclose" type="button" data-close>×</button></div><div class="empty">${esc(e.message)}</div>`; }
   }
 
   /* ---------------- move in: a real Jupiter swap from one coin into the other ---------------- */
   async function openMoveIn(from, to) {
-    openDrawer(`<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">MOVE IN</span><button class="dclose" type="button" data-close>×</button></div><div class="empty">Reading both coins…</div>`);
+    openDrawer(`<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">TIE YOUR BAG</span><button class="dclose" type="button" data-close>×</button></div><div class="empty">Reading both coins…</div>`);
     try { const [a, b] = await Promise.all([api('coin?ca=' + from), api('coin?ca=' + to)]);
-      dPanel.innerHTML = `<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">MOVE IN</span><button class="dclose" type="button" data-close>×</button></div><div class="pair"><span class="c">${av(a)}<span><b>$${esc(a.symbol)}</b><span>the vamp · ${usd(a.mc)}</span></span></span><span class="x">${tieSvg(34)}</span><span class="c"><span><b>$${esc(b.symbol)}</b><span>the original · ${usd(b.mc)}</span></span>${av(b)}</span></div><div class="dsec" style="margin-top:18px"><h4>SWAP YOUR $${esc(a.symbol)} INTO $${esc(b.symbol)}</h4><div id="mvBox"></div></div>`;
+      dPanel.innerHTML = `<div class="dtop"><span class="mono" style="color:var(--fa);font-size:12px">TIE YOUR BAG</span><button class="dclose" type="button" data-close>×</button></div><div class="pair"><span class="c">${av(a)}<span><b>$${esc(a.symbol)}</b><span>the vamp · ${usd(a.mc)}</span></span></span><span class="x">${tieSvg(34)}</span><span class="c"><span><b>$${esc(b.symbol)}</b><span>the original · ${usd(b.mc)}</span></span>${av(b)}</span></div><div class="dsec" style="margin-top:18px"><h4>SWAP YOUR $${esc(a.symbol)} INTO $${esc(b.symbol)}</h4><div id="mvBox"></div></div>`;
       mountMoveIn($('#mvBox'), a, b);
     } catch (e) { dPanel.innerHTML = `<div class="dtop"><span></span><button class="dclose" type="button" data-close>×</button></div><div class="empty">${esc(e.message)}</div>`; }
   }
-  function mountMoveIn(box, from, to) {
-    box.innerHTML = `<div class="mv"><div class="kv"><span>your $${esc(from.symbol)}</span><b data-bal>${S.wallet ? '…' : 'connect to see'}</b></div><div class="mvr"><input data-amt inputmode="decimal" placeholder="amount of $${esc(from.symbol)}"><button class="btn sm" type="button" data-max>MAX</button></div><div class="kv"><span>you get</span><b data-out>—</b></div><button class="btn pri wide" type="button" data-go>${S.wallet ? 'Move in' : 'Connect to move in'}</button><p class="err" data-err></p></div>`;
-    let bal = null, q = null, qt; const out = $('[data-out]', box), err = $('[data-err]', box), amt = $('[data-amt]', box), go = $('[data-go]', box);
+  function mountMoveIn(box, from, to, after) {
+    box.innerHTML = `<div class="mv"><div class="mvp"><div class="kv"><span>swapped in so far · verified on chain</span><b data-mvs>reading…</b></div><div class="mvbar big"><i data-mvbar></i></div></div>
+      <div class="kv"><span>your $${esc(from.symbol)}</span><b data-bal>${S.wallet ? '…' : 'connect to see'}</b></div>
+      <div class="kv"><span>you get</span><b data-out>—</b></div>
+      <button class="btn pri wide" type="button" data-all>${S.wallet ? 'Tie my whole bag' : 'Connect to tie your bag'}</button>
+      <div class="mvr"><input data-amt inputmode="decimal" placeholder="or move part: amount of $${esc(from.symbol)}"><button class="btn sm" type="button" data-go>Move</button></div>
+      <p class="err" data-err></p><div class="mvlog" data-log></div></div>`;
+    let bal = null, q = null, qt, busy = false; const out = $('[data-out]', box), err = $('[data-err]', box), amt = $('[data-amt]', box), go = $('[data-go]', box), all = $('[data-all]', box);
     const loadBal = async () => { if (!S.wallet) return; try { bal = await tokenBalance(from.mint); $('[data-bal]', box).textContent = bal.ui.toLocaleString(undefined, { maximumFractionDigits: 4 }); } catch (e) { $('[data-bal]', box).textContent = '—'; } };
+    const loadMoves = async () => {
+      try {
+        const m = await api(`moves?from=${from.mint}&to=${to.mint}`), p = from.supply ? m.amt / from.supply * 100 : 0;
+        $('[data-mvs]', box).textContent = m.wallets ? `${m.wallets} wallet${m.wallets === 1 ? '' : 's'} · ${amtF(m.amt)} $${from.symbol}${from.supply ? ' · ' + pct(p) + ' of supply' : ''}` : 'nobody yet · be the first';
+        $('[data-mvbar]', box).style.width = Math.min(100, p) + '%';
+        $('[data-log]', box).innerHTML = m.list.map(x => `<a href="https://solscan.io/tx/${esc(x.sig)}" target="_blank" rel="noopener"><span>${esc(x.wallet)}</span><span>${amtF(x.gave)} $${esc(from.symbol)} → ${amtF(x.got)} $${esc(to.symbol)}</span><span>${ago(x.at)} ↗</span></a>`).join('');
+      } catch (e) { $('[data-mvs]', box).textContent = '—'; }
+    };
+    const showOut = j => { const o = Number(j.outAmount) / 10 ** (to.decimals || 6); out.textContent = `${o.toLocaleString(undefined, { maximumFractionDigits: 4 })} $${to.symbol}${j.priceImpactPct ? ' · impact ' + (Number(j.priceImpactPct) * 100).toFixed(2) + '%' : ''}`; };
+    const getQuote = async raw => { const j = await api(`quote?in=${from.mint}&out=${to.mint}&amount=${raw}`); showOut(j); return j; };
+    const rawOf = v => { const dec = (bal && bal.dec) || from.decimals || 6; return BigInt(Math.floor(v * 10 ** Math.min(dec, 9))) * (dec > 9 ? 10n ** BigInt(dec - 9) : 1n); };
     const quote = async () => {
       q = null; out.textContent = '—'; err.textContent = ''; const v = parseFloat(amt.value); if (!(v > 0)) return;
-      const dec = (bal && bal.dec) || from.decimals || 6, raw = BigInt(Math.floor(v * 10 ** Math.min(dec, 9))) * (dec > 9 ? 10n ** BigInt(dec - 9) : 1n);
-      out.textContent = 'quoting…';
-      try { const j = await api(`quote?in=${from.mint}&out=${to.mint}&amount=${raw}`); q = j; const o = Number(j.outAmount) / 10 ** (to.decimals || 6); out.textContent = `${o.toLocaleString(undefined, { maximumFractionDigits: 4 })} $${to.symbol}${j.priceImpactPct ? ' · impact ' + (Number(j.priceImpactPct) * 100).toFixed(2) + '%' : ''}`; }
-      catch (e) { out.textContent = '—'; err.textContent = e.message; }
+      out.textContent = 'quoting…'; try { q = await getQuote(rawOf(v)); } catch (e) { out.textContent = '—'; err.textContent = e.message; }
     };
     amt.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(quote, 380); });
-    $('[data-max]', box).onclick = async () => { if (!S.wallet) return walletModal(); if (!bal) await loadBal(); if (bal) { amt.value = String(bal.ui); quote(); } };
-    go.onclick = () => needTx(async () => {
-      go.textContent = 'Move in'; if (!q) { amt.focus(); return toast('Enter an amount'); }
-      go.disabled = true; err.textContent = '';
-      try { go.textContent = 'Building…'; const j = await api('swap', { quoteResponse: q, userPublicKey: S.wallet }); go.textContent = 'Check wallet'; const sig = await signSend(W().VersionedTransaction.deserialize(unb64(j.swapTransaction))); go.textContent = 'Confirming…'; const ok = await confirm(sig); toast(ok ? `Moved in. Welcome to $${to.symbol}.` : 'Sent. Waiting for the network.', 4000); err.innerHTML = `<a href="https://solscan.io/tx/${esc(sig)}" target="_blank" rel="noopener" style="color:var(--tx)">view on Solscan ↗</a>`; amt.value = ''; q = null; out.textContent = '—'; loadBal(); }
-      catch (e) { err.textContent = errMsg(e); }
-      go.disabled = false; go.textContent = 'Move in';
-    });
-    loadBal();
+    // swap → sign → confirm → the server reads the transaction back from Solana and counts it
+    async function run(btn, label, quoteFn) {
+      if (busy) return; busy = true; err.textContent = ''; btn.disabled = true;
+      try {
+        btn.textContent = 'Quoting…'; const qq = await quoteFn(); if (!qq) return;
+        btn.textContent = 'Building…'; const j = await api('swap', { quoteResponse: qq, userPublicKey: S.wallet });
+        btn.textContent = 'Check wallet'; const sig = await signSend(W().VersionedTransaction.deserialize(unb64(j.swapTransaction)));
+        btn.textContent = 'Confirming…'; const ok = await confirm(sig);
+        btn.textContent = 'Verifying on chain…'; let v = null;
+        for (let i = 0; i < 10 && !v; i++) { try { v = await api('moved', { sig, from: from.mint, to: to.mint }); } catch (e) { if (e.status !== 409) { err.textContent = e.message; break; } await sleep(2500); } }
+        toast(v ? `Tied. ${amtF(v.gave)} $${from.symbol} swapped into $${to.symbol}, verified on chain.` : ok ? 'Swapped. Waiting for the chain to show it.' : 'Sent. Waiting for the network.', 4500);
+        if (!err.textContent) err.innerHTML = `<a href="https://solscan.io/tx/${esc(sig)}" target="_blank" rel="noopener" style="color:var(--tx)">view on Solscan ↗</a>`;
+        amt.value = ''; q = null; loadBal(); loadMoves(); if (after) after();
+      } catch (e) { err.textContent = errMsg(e); }
+      finally { busy = false; btn.disabled = false; btn.textContent = label; }
+    }
+    all.onclick = () => needTx(() => run(all, 'Tie my whole bag', async () => {
+      await loadBal(); if (!bal || bal.raw <= 0n) { err.textContent = `This wallet holds no $${from.symbol}.`; return null; }
+      amt.value = ''; return getQuote(bal.raw.toString());
+    }));
+    go.onclick = () => needTx(() => run(go, 'Move', async () => { if (!(parseFloat(amt.value) > 0)) { amt.focus(); toast('Enter an amount'); return null; } if (!bal) await loadBal(); return q || getQuote(rawOf(parseFloat(amt.value))); }));
+    loadBal(); loadMoves();
   }
 
   /* ---------------- the certificate, drawn in dots ---------------- */
@@ -438,9 +486,9 @@
     const T = w.tally || { a: {}, b: {} };
     g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(0, Hd * .52, Wd, Hd * .48);
     g.fillStyle = '#efefef'; g.font = '800 64px I, Inter, sans-serif'; g.fillText(`$${w.a.symbol}  ×  $${w.b.symbol}`, Wd / 2, Hd * .66);
-    g.fillStyle = '#8a8a8a'; g.font = '500 24px M, monospace'; g.fillText(`TIED ON ${new Date(w.closed || w.closes).toDateString().toUpperCase()} · WEDDING #${w.id}`, Wd / 2, Hd * .76);
-    g.fillText(`I DO  ${pct((T.a || {}).yes || 0)} OF $${w.a.symbol}  ·  ${pct((T.b || {}).yes || 0)} OF $${w.b.symbol}`, Wd / 2, Hd * .83);
-    g.fillStyle = '#efefef'; g.font = '500 20px M, monospace'; g.fillText('TWO COINS. ONE KNOT.', Wd / 2, Hd * .93);
+    g.fillStyle = '#8a8a8a'; g.font = '500 24px M, monospace'; g.fillText(`TIED ON ${new Date(w.closed || w.closes).toDateString().toUpperCase()} · TIE #${w.id}`, Wd / 2, Hd * .76);
+    g.fillText(`YES  ${pct((T.a || {}).yes || 0)} OF $${w.a.symbol}  ·  ${pct((T.b || {}).yes || 0)} OF $${w.b.symbol}`, Wd / 2, Hd * .83);
+    g.fillStyle = '#efefef'; g.font = '500 20px M, monospace'; g.fillText(`SWAPPED IN · ${pct((w.moved || {}).pct || 0)} OF $${w.b.symbol} · ${(w.moved || {}).wallets || 0} WALLETS`, Wd / 2, Hd * .93);
     const dl = $('#certDl'); if (dl) dl.onclick = () => c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `tied-${w.a.symbol}-${w.b.symbol}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
   }
 
@@ -533,7 +581,7 @@
     1(g, w, h, t) { const k = (t % 4) / 4, cx = w / 2, cy = h / 2, r = h * .22; coin(g, cx, cy, r);
       for (let i = 0; i < 7; i++) { const a = i / 7 * 6.28 + .4, b = ease.back((k - .1 - i * .05) / .15) * (1 - ease.out((k - .8) / .15)); if (b > 0) coin(g, cx + Math.cos(a) * w * .3, cy + Math.sin(a) * h * .33, r * .45 * b, .9); } },
     2(g, w, h, t) { const k = (t % 3.6) / 3.6, d = w * .32 * (1 - ease.out(k / .5)) + w * .12, cy = h / 2, r = h * .24; coin(g, w / 2 - d, cy, r); coin(g, w / 2 + d, cy, r);
-      const ring = ease.back((k - .5) / .2) * (1 - ease.out((k - .9) / .1)); if (ring > 0) { g.lineWidth = 1.6; g.strokeStyle = '#fff'; g.beginPath(); g.arc(w / 2, cy - r * 1.3, r * .5 * ring, 0, 6.28); g.stroke(); } },
+      const tie = ease.back((k - .5) / .2) * (1 - ease.out((k - .9) / .1)); if (tie > 0) drawTie(g, w / 2, cy - r * 1.45, r * 2.2 * tie, { rim: .8 }); },
     3(g, w, h, t) { const k = Math.min(1, (t % 4) / 2.6), bw = w * .78, x0 = (w - bw) / 2;
       [[.34, .72], [.62, .61]].forEach(([y, f]) => { g.fillStyle = 'rgb(60,60,60)'; g.fillRect(x0, h * y - 2, bw, 4); g.fillStyle = '#fff'; g.fillRect(x0, h * y - 2, bw * f * ease.out(k), 4); });
       g.fillStyle = 'rgb(160,160,160)'; g.fillRect(x0 + bw * .5, h * .18, 1, h * .64); },
@@ -546,7 +594,8 @@
   function refreshAll() { loadCeremonies(); loadTied(); if (S.drawer) openWedding(S.drawer); }
   renderMe();
   api('config').then(c => { S.cfg = c; $$('.minT').forEach(x => x.textContent = c.minTurnout); }).catch(() => { });
-  loadRadar(); loadCeremonies(); loadTied(); loadSingles();
+  loadRadar(); loadLive(); loadCeremonies(); loadTied(); loadSingles();
+  setInterval(() => { if (!document.hidden) loadLive(); }, 20000);
   setInterval(() => { if (!document.hidden) loadCeremonies(); }, 20000);
   setInterval(() => { if (!document.hidden) { loadTied(); loadSingles(); } }, 60000);
   setInterval(() => { if (!document.hidden) loadRadar(); }, 60000);
