@@ -142,7 +142,7 @@ async function vampsOf(q) {
   let seed = null, key = q;
   if (B58.test(q)) { seed = await coin(q); key = seed.symbol; }
   const k = norm(key); if (!k) throw http(400, 'Nothing to search for.');
-  return cached('vamps:' + k, 90, async () => {
+  return cached('vamps:' + k, 50, async () => {
     const d = await getJson(DEX + '/latest/dex/search?q=' + encodeURIComponent(key));
     const by = new Map();
     for (const p of (d.pairs || [])) {
@@ -156,7 +156,8 @@ async function vampsOf(q) {
   }).then(r => {
     const list = r.list.slice(); if (seed && !list.some(x => x.mint === seed.mint) && seed.created) { list.push(seed); list.sort((a, b) => a.created - b.created); }
     const og = list[0] || null;
-    return { q: r.key, og, vamps: og ? list.slice(1).map(x => ({ ...x, after: Math.max(0, Math.round((x.created - og.created) / 60000)) })) : [], seed: seed ? seed.mint : null };
+    const now = Date.now();
+    return { q: r.key, at: now, og, vamps: og ? list.slice(1).map(x => ({ ...x, after: Math.max(0, Math.round((x.created - og.created) / 60000)), ago: Math.max(0, Math.round((now - x.created) / 60000)) })) : [], seed: seed ? seed.mint : null };
   });
 }
 
@@ -232,15 +233,21 @@ R['POST login'] = async ({ b }) => {
 
 R['GET coin'] = async ({ q }) => coin(String(q.ca || '').trim());
 R['GET vamps'] = async ({ q }) => vampsOf(q.q);
-R['GET radar'] = async () => cached('radar', 180, async () => {
-  const boosts = await getJson(DEX + '/token-boosts/top/v1').catch(() => []);
-  const mints = [...new Set((Array.isArray(boosts) ? boosts : []).filter(x => x.chainId === 'solana').map(x => x.tokenAddress))].slice(0, 10);
-  const info = await coinsBatch(mints), out = [];
-  for (const m of mints) {
-    const c = info[m]; if (!c) continue;
-    try { const v = await vampsOf(c.symbol); const og = v.og; out.push({ symbol: c.symbol, name: c.name, image: c.image, mint: m, mc: c.mc, vamps: v.vamps.length, og: og ? og.mint : null, isOg: og && og.mint === m }); } catch (e) { }
-  }
-  return out.sort((a, b) => b.vamps - a.vamps);
+/* the vamp scan: what's trending on Dexscreener right now, and how many copies each one has. Rescanned every minute. */
+R['GET radar'] = async () => cached('radar2', 55, async () => {
+  const srcs = await Promise.all(['/token-boosts/top/v1', '/token-boosts/latest/v1', '/token-profiles/latest/v1'].map(u => getJson(DEX + u).catch(() => [])));
+  const mints = [...new Set(srcs.flat().filter(x => x && x.chainId === 'solana' && x.tokenAddress).map(x => x.tokenAddress))].slice(0, 14);
+  const info = await coinsBatch(mints), seen = new Set(), list = [];
+  await Promise.all(mints.map(async m => {
+    const c = info[m]; if (!c || seen.has(norm(c.symbol))) return; seen.add(norm(c.symbol));
+    try {
+      const v = await vampsOf(c.symbol), og = v.og; if (!og) return;
+      const fresh = v.vamps.filter(x => x.ago <= 60).length, newest = v.vamps.length ? Math.min(...v.vamps.map(x => x.ago)) : null;
+      list.push({ symbol: c.symbol, name: c.name, image: c.image || (og.mint === m ? og.image : null), mint: m, mc: c.mc, vamps: v.vamps.length, fresh, newest, og: og.mint, isOg: og.mint === m });
+    } catch (e) { }
+  }));
+  list.sort((a, b) => (b.fresh - a.fresh) || (b.vamps - a.vamps));
+  return { at: Date.now(), list };
 });
 
 R['POST propose'] = async ({ b, me }) => {
