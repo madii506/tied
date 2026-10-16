@@ -161,6 +161,21 @@
   $('#chapel').addEventListener('click', e => { if (!introDone && !e.target.closest('form,a,button')) skip(); });
   setTimeout(() => { if (!introDone && skipAt == null) skipAt = hero.t; }, END * 1000 + 4000);
 
+  /* ---------------- the same dot panel behind every section, with slow light drifting across it ---------------- */
+  const heroEl = $('#chapel');
+  const bg = window.LED($('#bgled'), {
+    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fit: 'self', fps: 40, ease: .12, idle: true, gpu: true,
+    active: () => heroEl.getBoundingClientRect().bottom < innerHeight * .98,
+    draw(g, gw, gh, t) {
+      if (reduce) return true;
+      const blobs = [[.22 + Math.sin(t * .07) * .14, .3 + Math.cos(t * .05) * .2, .42], [.78 + Math.cos(t * .06) * .12, .62 + Math.sin(t * .08) * .22, .5], [.5 + Math.sin(t * .045 + 2) * .3, .9 + Math.cos(t * .05) * .15, .36]];
+      for (const [u, v, r] of blobs) { const R = Math.max(gw, gh) * r, gr = g.createRadialGradient(u * gw, v * gh, 0, u * gw, v * gh, R); gr.addColorStop(0, 'rgba(255,255,255,.085)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, gw, gh); }
+      return false;
+    },
+  });
+  addEventListener('pointermove', e => { const c = bg.cell || 9; bg.mouse.x = e.clientX / c; bg.mouse.y = e.clientY / c; bg.wake(); }, { passive: true });
+  addEventListener('pointerdown', e => { if (e.target.closest('a,button,input,textarea,label,.drawer,.modal,#chapel')) return; const c = bg.cell || 9; bg.ripple(e.clientX / c, e.clientY / c); }, { passive: true });
+
   /* ---------------- smooth scroll, reveal, nav ---------------- */
   let lenis = null;
   if (!reduce && window.Lenis) { lenis = new Lenis({ lerp: .085, smoothWheel: true }); const raf = t => { lenis.raf(t); requestAnimationFrame(raf); }; requestAnimationFrame(raf); }
@@ -184,7 +199,7 @@
       c.style.width = Math.min(h.parentElement.clientWidth, Math.ceil(m.measureText(t).width + cell * 4)) + 'px'; c.style.height = H + 'px'; h.classList.add('ready');
       let start = null;
       const L = window.LED(c, {
-        cell, fit: 'self', fps: 30, ease: .25,
+        cell, fit: 'self', fps: 30, ease: .25, transparent: true,
         draw(g, gw, gh, tt) {
           if (start == null) return true;
           const p = ease.out((tt - start) / 1), fs = gh * .86;
@@ -202,7 +217,7 @@
   (document.fonts && document.fonts.load ? document.fonts.load('800 80px I').catch(() => { }) : Promise.resolve()).then(ledTitles);
   // the knot between the two coins on the altar
   const knotLed = window.LED($('#knotC'), {
-    cell: 4, fit: 'self', fps: 30, ease: .2,
+    cell: 4, fit: 'self', fps: 30, ease: .2, transparent: true,
     draw(g, gw, gh, t) { const k = S.pTied ? 1 : .55 + Math.sin(t * 2) * .05; drawTie(g, gw / 2, gh / 2, gw * .92 * k, { rot: Math.sin(t) * .04, rim: 1, wings: S.pTied ? 1 : .55 }); return false; },
   });
 

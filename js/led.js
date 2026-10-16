@@ -5,11 +5,11 @@
   'use strict';
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const LEVELS = 16;
-  function sprites(px) {
+  function sprites(px, clear) {
     const out = [], s = Math.max(2, px);
     for (let i = 0; i < LEVELS; i++) {
       const v = i / (LEVELS - 1), c = document.createElement('canvas'); c.width = c.height = s; const g = c.getContext('2d');
-      g.fillStyle = '#000'; g.fillRect(0, 0, s, s);
+      if (!clear) { g.fillStyle = '#000'; g.fillRect(0, 0, s, s); } else if (i === 0) { out.push(c); continue; }
       const lum = Math.round(22 + v * 220), r = s * (.33 + v * .11);
       if (v > .55) { const gl = g.createRadialGradient(s / 2, s / 2, r * .6, s / 2, s / 2, s * .5); gl.addColorStop(0, `rgba(255,255,255,${(v - .55) * .35})`); gl.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(0, 0, s, s); }
       g.fillStyle = `rgb(${lum},${lum},${lum})`; g.beginPath(); g.arc(s / 2, s / 2, r, 0, Math.PI * 2); g.fill();
@@ -55,7 +55,7 @@ float lum=(22.+v*220.)/255.;float o=mix(g,lum,a);if(pw.z>=0.){o*=1.-smoothstep(p
   window.LED = function (canvas, opts = {}) {
     const { cell = 9, draw, ease = .18, fps = 60, fit = 'parent', idle = true } = opts;
     const G = opts.gpu && !opts.post ? makeGL(canvas) : null;
-    const ctx = G ? null : canvas.getContext('2d', { alpha: false }), lo = document.createElement('canvas'), lg = lo.getContext('2d', { willReadFrequently: true });
+    const clear = !!opts.transparent, ctx = G ? null : canvas.getContext('2d', { alpha: clear }), lo = document.createElement('canvas'), lg = lo.getContext('2d', { willReadFrequently: true });
     let W, H, gw, gh, cur, shown, px8, spr, dpr, xs, ys, cp, ox, oy, t0 = performance.now(), last = 0, on = true, cellPx = cell, frozen = false, full = true;
     const api = { t: 0, gw: 0, gh: 0, mouse: { x: -99, y: -99 }, ripples: [], cell, gpu: !!G };
     function size() {
@@ -76,13 +76,13 @@ float lum=(22.+v*220.)/255.;float o=mix(g,lum,a);if(pw.z>=0.){o*=1.-smoothstep(p
         xs = new Int32Array(gw + 1); ys = new Int32Array(gh + 1);
         for (let x = 0; x <= gw; x++) xs[x] = Math.round(ox + x * cp);
         for (let y = 0; y <= gh; y++) ys[y] = Math.round(oy + y * cp);
-        spr = sprites(Math.ceil(cp));
+        spr = sprites(Math.ceil(cp), clear);
       }
       api.gw = gw; api.gh = gh; api.cell = cellPx; frozen = false; full = true;
     }
     function frame(ts) {
       requestAnimationFrame(frame);
-      if (!on || document.hidden) return;
+      if (!on || document.hidden || (opts.active && !opts.active())) return;
       if (ts - last < 1000 / fps - 4) return; last = ts; api.t = (ts - t0) / 1000;
       if (frozen && !api.ripples.length) return;
       lg.globalCompositeOperation = 'source-over'; lg.fillStyle = '#000'; lg.fillRect(0, 0, gw, gh);
@@ -91,7 +91,7 @@ float lum=(22.+v*220.)/255.;float o=mix(g,lum,a);if(pw.z>=0.){o*=1.-smoothstep(p
       api.ripples = api.ripples.filter(r => api.t - r.t < 1.4);
       for (const r of api.ripples) { const k = (api.t - r.t) / 1.4, rad = k * Math.max(gw, gh) * .55; lg.strokeStyle = `rgba(255,255,255,${(1 - k) * .55})`; lg.lineWidth = 1.6; lg.beginPath(); lg.arc(r.x, r.y, rad, 0, Math.PI * 2); lg.stroke(); }
       const d = lg.getImageData(0, 0, gw, gh).data, e = reduce ? 1 : ease, mx = api.mouse.x, my = api.mouse.y, n = LEVELS - 1;
-      if (!G && full) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); shown.fill(-1); full = false; }
+      if (!G && full) { if (clear) ctx.clearRect(0, 0, canvas.width, canvas.height); else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); } shown.fill(clear ? 0 : -1); full = false; }
       let moving = false;
       for (let y = 0, i = 0; y < gh; y++) {
         const near = Math.abs(y - my) < 6, y0 = G ? 0 : ys[y], h = G ? 0 : ys[y + 1] - y0;
@@ -103,7 +103,7 @@ float lum=(22.+v*220.)/255.;float o=mix(g,lum,a);if(pw.z>=0.){o*=1.-smoothstep(p
           cur[i] = c;
           if (G) { px8[i] = c * 255; continue; }
           const k = (c * n + .5) | 0;
-          if (k !== shown[i]) { shown[i] = k; const x0 = xs[x]; ctx.drawImage(spr[k > n ? n : k], x0, y0, xs[x + 1] - x0, h); }
+          if (k !== shown[i]) { shown[i] = k; const x0 = xs[x], w = xs[x + 1] - x0; if (clear) { ctx.clearRect(x0, y0, w, h); if (!k) continue; } ctx.drawImage(spr[k > n ? n : k], x0, y0, w, h); }
         }
       }
       if (G) { const gl = G.gl, pw = opts.power ? opts.power(api.t, gw, gh) : null; gl.uniform3f(G.u.pw, pw ? pw[0] : 0, pw ? pw[1] : 0, pw ? pw[2] : -1); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gw, gh, gl.LUMINANCE, gl.UNSIGNED_BYTE, px8); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
