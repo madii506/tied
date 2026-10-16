@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TIED</title>
+<meta name="description" content="two coins. one knot. the launchpad where vamps get married.">
+<meta name="theme-color" content="#000000">
+<meta property="og:title" content="TIED">
+<meta property="og:description" content="two coins. one knot. the launchpad where vamps get married.">
+<meta property="og:image" content="/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="/img/og.jpg">
+<link rel="icon" href="/img/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/img/apple-touch.png">
+<link rel="preload" href="/fonts/Inter-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/tied.css">
+</head>
+<body>
+<nav id="nav">
+  <div class="links" id="links">
+    <a href="#vamps" data-s="vamps">Vamps</a>
+    <a href="#ceremonies" data-s="ceremonies">Ceremonies</a>
+    <a href="#propose" data-s="propose">Propose</a>
+    <a href="#launch" data-s="launch">Launch</a>
+    <a href="#tied" data-s="tied">Tied</a>
+    <a href="#how" data-s="how">How</a>
+    <span class="ind" id="ind"></span>
+  </div>
+  <button class="wbtn" id="wBtn" type="button"><i></i><span id="wLabel">Connect</span></button>
+</nav>
+
+<main>
+  <section class="hero" id="chapel">
+    <canvas id="led" aria-hidden="true"></canvas>
+    <h1 class="sr">TIED. Two coins. One knot.</h1>
+    <div class="hdom" id="hdom">
+      <p class="tag mono">TWO COINS. ONE KNOT.</p>
+      <form class="find" id="heroFind" autocomplete="off">
+        <span class="mono">$</span><input id="heroQ" placeholder="paste a ticker or contract address" spellcheck="false" aria-label="Ticker or contract address">
+        <button class="btn pri" type="submit">Find the vamps</button>
+      </form>
+      <div class="hlinks"><a href="#ceremonies" data-go="ceremonies">Open ceremonies <b>→</b></a><a href="#launch" data-go="launch">Launch a coin <b>→</b></a></div>
+    </div>
+    <div class="skip mono" id="skip">click to skip</div>
+    <div class="radar" id="radar" hidden><span class="rl mono">MOST VAMPED NOW</span><div class="rt"><div class="rin" id="radarIn"></div></div></div>
+  </section>
+
+  <section class="sec" id="vamps">
+    <div class="shead"><span class="idx mono">01</span><h2 class="led-t" data-t="VAMPS">Vamps</h2><p class="sub">Every coin gets copied. Find the original and every vamp, in launch order.</p></div>
+    <form class="find big rv" id="vFind" autocomplete="off">
+      <span class="mono">$</span><input id="vQ" placeholder="ticker or contract address" spellcheck="false" aria-label="Ticker or contract address">
+      <button class="btn pri" type="submit">Search</button>
+    </form>
+    <div class="vout rv" id="vOut"></div>
+  </section>
+
+  <section class="sec" id="ceremonies">
+    <div class="shead"><span class="idx mono">02</span><h2 class="led-t" data-t="SPEAK NOW">Speak now</h2><p class="sub">Open weddings. Holders of both coins have 24 hours. Both sides need a majority.</p></div>
+    <div class="grid2 rv" id="cList"><div class="empty">Reading the chapel…</div></div>
+  </section>
+
+  <section class="sec" id="propose">
+    <div class="shead"><span class="idx mono">03</span><h2 class="led-t" data-t="PROPOSE">Propose</h2><p class="sub">Two contract addresses. The bigger coin keeps the name. The smaller one moves in.</p></div>
+    <div class="altar rv">
+      <div class="pc" id="pA"><label class="mono" for="pAin">COIN A</label><input id="pAin" placeholder="contract address" spellcheck="false"><div class="pcard" id="pAc"></div></div>
+      <div class="knot" aria-hidden="true"><canvas id="knotC" width="120" height="120"></canvas></div>
+      <div class="pc" id="pB"><label class="mono" for="pBin">COIN B</label><input id="pBin" placeholder="contract address" spellcheck="false"><div class="pcard" id="pBc"></div></div>
+    </div>
+    <div class="terms rv" id="pTerms"></div>
+    <div class="vowrow rv"><input id="pVow" maxlength="140" placeholder="your vow (optional, 140 characters)"><button class="btn pri" id="pGo" type="button" disabled>Propose</button></div>
+    <p class="err" id="pErr"></p>
+  </section>
+
+  <section class="sec" id="launch">
+    <div class="shead"><span class="idx mono">04</span><h2 class="led-t" data-t="LAUNCH">Launch</h2><p class="sub">A real pump.fun coin, created in a transaction you sign. Born on TIED, ready to tie.</p></div>
+    <div class="lgrid rv">
+      <form class="lform" id="lForm" autocomplete="off">
+        <label class="drop" id="lDrop"><input type="file" id="lImg" accept="image/png,image/jpeg,image/gif,image/webp" hidden><span id="lDropT">Drop an image<br><small class="mono">png · jpg · gif · webp · under 1 MB</small></span></label>
+        <div class="lf">
+          <div class="row2"><input id="lName" maxlength="32" placeholder="name"><input id="lSym" maxlength="10" placeholder="TICKER"></div>
+          <textarea id="lDesc" maxlength="600" placeholder="description"></textarea>
+          <div class="row2"><input id="lX" placeholder="https://x.com/…"><input id="lWeb" placeholder="https://…"></div>
+          <div class="row2 buy"><label class="mono" for="lBuy">DEV BUY</label><input id="lBuy" type="number" min="0" max="20" step="0.01" value="0" inputmode="decimal"><span class="mono">SOL</span></div>
+          <ol class="steps mono" id="lSteps"><li data-s="1">upload</li><li data-s="2">build</li><li data-s="3">sign</li><li data-s="4">live</li></ol>
+          <button class="btn pri wide" id="lGo" type="submit"><span>Launch on pump.fun</span></button>
+          <div id="lOut"></div>
+        </div>
+      </form>
+      <div class="singles"><div class="lab mono">BORN ON TIED</div><div id="sList" class="slist"><div class="empty">Nobody yet. Be the first single in the chapel.</div></div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="tied">
+    <div class="shead"><span class="idx mono">05</span><h2 class="led-t" data-t="JUST TIED">Just tied</h2><p class="sub">Every wedding that passed, with its certificate. Holders of the smaller coin move in with one swap.</p></div>
+    <div class="tabs rv" id="tTabs"><button type="button" data-st="tied" class="on">tied</button><button type="button" data-st="called_off">called off</button></div>
+    <div class="board rv" id="tList"><div class="empty">Reading the registry…</div></div>
+  </section>
+
+  <section class="sec" id="how">
+    <div class="shead"><span class="idx mono">06</span><h2 class="led-t" data-t="THE VOWS">The vows</h2></div>
+    <ol class="vows rv">
+      <li><b class="mono">01</b><h3>Find the vamp</h3><p>Paste a ticker. The oldest coin is the original. Everything after it is a vamp.</p></li>
+      <li><b class="mono">02</b><h3>Propose</h3><p>Any holder of either coin proposes. The bigger coin keeps the name.</p></li>
+      <li><b class="mono">03</b><h3>Speak now</h3><p>24 hours. Holders sign I DO or OBJECT for free. Weight is your real balance.</p></li>
+      <li><b class="mono">04</b><h3>Move in</h3><p>Both sides say I do and it's tied. The smaller coin's holders move in with one swap.</p></li>
+    </ol>
+    <div class="real rv">
+      <div class="lab mono">WHAT'S REAL</div>
+      <ul>
+        <li><b>Votes are signatures.</b> Free, not transactions. Each one is weighted by your balance, read from Solana.</li>
+        <li><b>Balances are read again at the end.</b> Sell after voting and your vote shrinks with your bag.</li>
+        <li><b>Both sides need a majority</b> and at least <span class="minT">1</span>% of each supply saying I do.</li>
+        <li><b>Moving in is a real swap</b> through Jupiter, signed in your wallet.</li>
+        <li><b>Launches are real pump.fun coins</b> created in a transaction you sign.</li>
+        <li><b>Nothing is held by us.</b> No deposits, no custody, no pool tricks.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec" id="faq">
+    <div class="shead"><span class="idx mono">07</span><h2 class="led-t" data-t="FAQ">FAQ</h2></div>
+    <div class="qa rv">
+      <details><summary>Do the pools really merge?</summary><div class="ans"><p>No pool can be fused without the coins' own programs, so we don't pretend. A wedding is a public vote by both communities, and when it passes the smaller coin's holders move into the bigger coin with one real swap. One narrative, one runner.</p></div></details>
+      <details><summary>Which coins can get tied?</summary><div class="ans"><p>Any two Solana tokens with a price, not just coins launched here. That's the point: vamps launch everywhere.</p></div></details>
+      <details><summary>Who can vote?</summary><div class="ans"><p>Anyone holding either coin. Your weight is your share of that coin's supply, read from chain when you vote and again when the window closes.</p></div></details>
+      <details><summary>What does it cost?</summary><div class="ans"><p>Signing in and voting are free signatures. Swaps and launches cost the normal network and pump.fun fees, nothing more.</p></div></details>
+      <details><summary>Is this financial advice?</summary><div class="ans"><p>No. Memecoins are volatile. Read the coin before you move in.</p></div></details>
+    </div>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" aria-hidden="true"><div class="dshade" data-close></div><div class="dpanel" id="dPanel" data-lenis-prevent></div></aside>
+<div id="layer"></div>
+<p class="sr" id="srlive" aria-live="polite"></p>
+<script src="/js/web3.min.js" defer></script>
+<script src="/js/lenis.min.js" defer></script>
+<script src="/js/led.js" defer></script>
+<script src="/js/tied.js" defer></script>
+</body>
+</html>
