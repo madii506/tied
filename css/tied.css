@@ -409,3 +409,12 @@ body:not(.intro) .boot{opacity:0}
 
 #led{will-change:opacity}
 .sec{contain:layout paint}
+/* the hero's dot panel continues behind every section */
+#bgled{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;pointer-events:none;display:block}
+main{position:relative;z-index:1}
+.hero{background:#000}
+/* panels sit on the dot wall like lit-up screens */
+.empty,.vlist,.board,.real,.terms,.srow,.og{background:rgba(5,5,5,.94)}
+.qa{background:rgba(0,0,0,.86);border-radius:var(--r);padding:0 18px}
+.vhead{background:rgba(0,0,0,.82);padding:8px 12px;border-radius:10px}
+.sub{text-shadow:0 0 12px #000,0 0 4px #000}
