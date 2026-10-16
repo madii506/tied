@@ -308,4 +308,44 @@ body.intro .radar{opacity:0}
   .real ul{grid-template-columns:1fr}
   .bar{grid-template-columns:56px 1fr 92px}
 }
+
+/* ---------- v2 sections ---------- */
+.marq{position:relative;height:64px;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);background:#000;overflow:hidden}
+.marq canvas{display:block;width:100%;height:64px}
+.vboard{margin-top:34px}
+.vboard .lab{display:flex;align-items:center;gap:8px}
+.vbgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.vb{border:1px solid var(--ln2);border-radius:var(--r);background:var(--p1);padding:16px;display:flex;flex-direction:column;gap:12px;text-align:left;transition:border-color .25s,transform .35s var(--ease),background .25s;animation:rin .5s var(--ease) both;animation-delay:calc(var(--i,0) * 50ms)}
+.vb:hover{border-color:#3d3d3d;transform:translateY(-3px);background:#0e0e0e}
+.vb .top{display:flex;align-items:center;gap:10px;min-width:0}
+.vb .top b{display:block;font:800 16px I;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vb .top span{display:block;font:500 11.5px M;color:var(--fa);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vb .cnt{display:flex;align-items:baseline;gap:8px}
+.vb .cnt b{font:800 34px/1 I;letter-spacing:-.03em}
+.vb .cnt span{font:500 12px M;color:var(--mu)}
+.vb svg{display:block;width:100%;height:34px}
+.vb .ft{display:flex;justify-content:space-between;font:500 11px M;color:var(--fa)}
+.vb .ft b{color:var(--t2);font-weight:500}
+.bline{border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px 10px;margin-bottom:14px;background:#050505}
+.bline svg{display:block;width:100%;height:84px}
+.bline .ft{display:flex;justify-content:space-between;font:500 11px M;color:var(--fa);margin-top:4px}
+.sugg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
+.sugg>div{display:flex;gap:8px;flex-wrap:wrap}
+.sugg button{display:flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 6px;border-radius:99px;border:1px solid var(--ln2);font:600 12.5px I;color:var(--t2);transition:all .2s}
+.sugg button:hover{border-color:var(--tx);color:#fff}
+.sugg button .av{width:24px;height:24px;font-size:10px}
+.altar .pc input{height:52px;font-size:13px}
+.pcard{min-height:110px;transition:border-color .3s,background .3s}
+.pcard.on{border-color:var(--ln2);background:var(--p1)}
+.lprev{position:relative;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;padding:20px;border:1px solid var(--ln2);border-radius:var(--r);background:linear-gradient(180deg,#101010,#070707);overflow:hidden}
+.lprev img.av,.lprev .av{width:72px;height:72px}
+.lprev b{display:block;font:800 22px I;letter-spacing:-.02em}
+.lprev span{display:block;font:500 13px M;color:var(--mu)}
+.lprev p{font-size:13px;color:var(--t2);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lprev .born{position:absolute;right:14px;top:12px;font-size:10px;letter-spacing:.25em;color:var(--fa)}
+.vled{display:block;width:100%;height:110px;border-radius:10px;margin-bottom:18px;background:#000}
+.vows li{padding:16px 16px 22px}
+.vows h3{margin-top:16px}
+@media (max-width:1000px){.vbgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.vbgrid{grid-template-columns:1fr}.marq,.marq canvas{height:48px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}.rv{opacity:1;transform:none}}
