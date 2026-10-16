@@ -14,7 +14,8 @@
     }
     return out;
   }
-  window.LED = function (canvas, { cell = 9, draw, ease = .18, fps = 45, fit = 'parent', idle = true } = {}) {
+  window.LED = function (canvas, opts = {}) {
+    const { cell = 9, draw, ease = .18, fps = 45, fit = 'parent', idle = true } = opts;
     const ctx = canvas.getContext('2d'), lo = document.createElement('canvas'), lg = lo.getContext('2d', { willReadFrequently: true });
     let W, H, gw, gh, cur, spr, dpr, t0 = performance.now(), last = 0, raf, on = true, cellPx = cell, frozen = false;
     const api = { t: 0, gw: 0, gh: 0, mouse: { x: -99, y: -99 }, ripples: [], cell };
@@ -47,6 +48,7 @@
         const c = cur[i] + (v - cur[i]) * e; if (Math.abs(c - cur[i]) > .002) moving = true; cur[i] = c;
         ctx.drawImage(spr[Math.min(n, Math.round(c * n))], ox + x * cp, oy + y * cp);
       }
+      if (opts.post) { ctx.setTransform(1, 0, 0, 1, 0, 0); opts.post(ctx, canvas.width, canvas.height, api.t); }
       if (still && !moving && idle) frozen = true;
     }
     function toGrid(e) { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / cellPx, y: (e.clientY - r.top) / cellPx }; }

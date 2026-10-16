@@ -59,57 +59,83 @@
   /* ---------------- the chapel: the intro plays once and becomes the hero ---------------- */
   const ease = { out: x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3), back: x => { x = Math.min(1, Math.max(0, x)); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); } };
   const seen = (() => { try { return sessionStorage.getItem('td:intro') === '1'; } catch (e) { return false; } })();
-  let skipAt = null, offset = reduce ? 3.2 : seen ? 2.0 : 0, introDone = false;
+  const END = 4.1;                                     // the intro hands over to the hero here
+  let skipAt = null, offset = reduce ? END : seen ? 2.6 : 0, introDone = false;
   document.body.classList.add('intro');
   const led = $('#led');
+  // the vamps: copies that pop up around the original, then get pulled into it
+  const rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
+  const VAMPS = Array.from({ length: 18 }, (_, i) => ({ a: i / 18 * Math.PI * 2 + rnd(i, 1) * .5, d: .55 + rnd(i, 2) * .5, r: .2 + rnd(i, 3) * .22, t: .55 + rnd(i, 4) * .75, w: rnd(i, 5) * 6.28 }));
+  const GLYPH = 'ABCDEFGHJKLMNOPQRSUVWXYZ0123456789$#%&';
+  const coin = (g, x, y, r, a = 1) => { if (r <= .2 || a <= 0) return; g.globalAlpha = a; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.lineWidth = Math.min(1.7, r * .35); g.strokeStyle = 'rgb(118,118,118)'; g.stroke(); g.globalAlpha = 1; };
   const hero = window.LED(led, {
-    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 50, ease: .2, idle: false,
+    cell: (W, H) => W < 700 ? 7 : W < 1200 ? 8 : 9, fps: 50, ease: .22, idle: false,
+    post(ctx, w, h, t0) {                                // the panel powers on from the centre
+      const t = skipAt != null ? END : t0 + offset; if (t > 1.1) return;
+      const k = ease.out(t / 1.05), r = Math.hypot(w, h) * .55 * k, gr = ctx.createRadialGradient(w / 2, h * .38, Math.max(1, r * .82), w / 2, h * .38, Math.max(2, r));
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    },
     draw(g, gw, gh, t0, A) {
-      const t = (skipAt != null ? Math.max(t0, 0) + 3.2 - skipAt : t0 + offset);
-      const mob = gw < 70, TW = Math.min(gw * (mob ? .74 : .4), gh * .5 * 2), TH = TW / 2, cx = gw / 2, cy = gh * (mob ? .27 : .29);
-      const mx = A.mouse.x > -50 ? (A.mouse.x - cx) / gw : 0, rot = reduce ? 0 : Math.sin(t * .9) * .015 + mx * .12;
-      // two coins roll in from the sides
-      const R = TH * .46;
-      if (t < 2.15) {
-        const k = ease.out((t - .25) / 1.2), m = ease.out((t - 1.45) / .6), alpha = 1 - m;
-        const ax = -R + (cx - R * 1.06 + R) * k, bx = gw + R - (gw + R - (cx + R * 1.06)) * k;
-        const lift = Math.sin(Math.min(1, k) * Math.PI) * TH * .08;
-        if (alpha > 0) {
-          g.globalAlpha = alpha;
-          for (const [x, y] of [[ax, cy - lift], [bx, cy + lift]]) { g.beginPath(); g.arc(x, y, R * (1 - m * .2), 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.7; g.strokeStyle = 'rgb(118,118,118)'; g.stroke(); }
-          g.globalAlpha = 1;
+      const t = skipAt != null ? t0 - skipAt + END : t0 + offset;
+      const mob = gw < 70, TW = Math.min(gw * (mob ? .58 : .27), gh * .36 * 2), TH = TW / 2, cx = gw / 2, cy = gh * (mob ? .29 : .31);
+      const mx = A.mouse.x > -50 ? (A.mouse.x - cx) / gw : 0, rot = reduce ? 0 : Math.sin(t * .9) * .015 + mx * .1;
+      const R = TH * .42, span = Math.min(gw, gh) * (mob ? .42 : .36);
+      if (t < 2.75) {
+        // 1. one coin appears, then vamps pop up all around it
+        const grow = ease.back((t - .25) / .45), pull = (t - 1.45) / .6;
+        let fed = 0;
+        for (const v of VAMPS) {
+          const born = ease.back((t - v.t) / .3); if (born <= 0) continue;
+          const k = Math.min(1, Math.max(0, pull)), kk = k * k * k;
+          if (kk >= 1) { fed++; continue; }
+          const d = span * v.d * (1 - kk), jig = Math.sin(t * 9 + v.w) * .6 * (1 - k);
+          coin(g, cx + Math.cos(v.a + kk * 1.2) * d + jig, cy + Math.sin(v.a + kk * 1.2) * d * .62, R * v.r * born * (1 - kk * .6), .95);
         }
-        if (m > 0) drawTie(g, cx, cy, TW, { rot, wings: m, knot: ease.back((t - 1.75) / .4), rim: 1.7 });
+        // 2. the original eats every vamp, then splits into two halves that become the wings
+        const swell = 1 + fed / VAMPS.length * .35, split = ease.out((t - 2.05) / .45);
+        if (split <= 0) coin(g, cx, cy, R * grow * swell);
+        else {
+          const off = split * TW * .26;
+          coin(g, cx - off, cy, R * swell * (1 - split * .15), 1 - ease.out((t - 2.35) / .35));
+          coin(g, cx + off, cy, R * swell * (1 - split * .15), 1 - ease.out((t - 2.35) / .35));
+          const m = ease.out((t - 2.3) / .45); if (m > 0) drawTie(g, cx, cy, TW, { rot, wings: m, knot: ease.back((t - 2.45) / .3), rim: 1.7 });
+        }
       } else {
         const breathe = reduce ? 0 : Math.sin(t * 1.6) * .012, pulse = Math.max(0, Math.sin(t * 2.2 - 1)) ** 6;
         drawTie(g, cx, cy, TW * (1 + breathe), { rot, wings: 1, knot: 1 + pulse * .06, rim: 1.7, glow: pulse, flap: Math.max(0, Math.sin(t * 1.6)) * .02 });
       }
-      if (t >= 1.98 && !A._rip) { A._rip = true; A.ripple(cx, cy); }
-      // the word lights up left to right
-      const fs = Math.min(gh * (mob ? .16 : .2), gw * (mob ? .3 : .17)), ty = gh * (mob ? .55 : .57);
+      if (t >= 2.6 && !A._rip) { A._rip = true; A.ripple(cx, cy); }
+      // 3. the name decodes, letter by letter, out of random glyphs
+      const fs = Math.min(gh * (mob ? .1 : .13), gw * (mob ? .2 : .11)), ty = gh * (mob ? .49 : .53);
       g.font = `800 ${fs}px I, Inter, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-      try { g.letterSpacing = (fs * .04) + 'px'; } catch (e) { }
-      const tw = g.measureText('TIED').width, p = ease.out((t - 2.15) / .85);
-      if (p > 0) {
-        g.save(); g.beginPath(); g.rect(cx - tw / 2 - 2, 0, (tw + 4) * p, gh); g.clip();
-        g.fillStyle = 'rgb(226,226,226)'; g.fillText('TIED', cx, ty + fs * .36);
-        g.lineWidth = .7; g.strokeStyle = 'rgb(120,120,120)'; g.strokeText('TIED', cx, ty + fs * .36); g.restore();
-        if (p < 1) { g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(cx - tw / 2 + tw * p - 1, ty - fs * .45, 1.4, fs * .9); }
-        // a slow sweep of light across the word
-        const sw = ((t * .22) % 1.6 - .3) * gw;
-        const gr = g.createLinearGradient(sw - 10, 0, sw + 10, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-        g.save(); g.beginPath(); g.rect(cx - tw / 2 - 2, 0, (tw + 4) * p, gh); g.clip(); g.fillStyle = gr; g.fillText('TIED', cx, ty + fs * .36); g.restore();
+      try { g.letterSpacing = '0px'; } catch (e) { }
+      const word = 'TIED', gap = fs * .08, ws = [...word].map(c => g.measureText(c).width), total = ws.reduce((a, b) => a + b, 0) + gap * 3;
+      let x = cx - total / 2; const base = ty + fs * .36;
+      for (let i = 0; i < 4; i++) {
+        const show = t - (2.75 + i * .1), settle = t - (3.05 + i * .17), mid = x + ws[i] / 2;
+        if (show > 0) {
+          const ch = settle >= 0 ? word[i] : GLYPH[Math.floor(t * 18 + i * 7) % GLYPH.length];
+          g.fillStyle = settle >= 0 ? 'rgb(230,230,230)' : 'rgb(150,150,150)'; g.fillText(ch, mid, base);
+          if (settle >= 0) { g.lineWidth = .7; g.strokeStyle = 'rgb(120,120,120)'; g.strokeText(ch, mid, base); }
+          if (settle >= 0 && settle < .25) { g.fillStyle = `rgba(255,255,255,${1 - settle * 4})`; g.fillText(ch, mid, base); }
+        }
+        x += ws[i] + gap;
       }
-      if (!introDone && t >= 3.0) finishIntro();
+      if (t > 3.7) {                                   // a slow sweep of light across the word
+        const sw = ((t * .22) % 1.6 - .3) * gw, gr = g.createLinearGradient(sw - 10, 0, sw + 10, 0);
+        gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; x = cx - total / 2; for (let i = 0; i < 4; i++) { g.fillText(word[i], x + ws[i] / 2, base); x += ws[i] + gap; }
+      }
+      if (!introDone && t >= END - .4) finishIntro();
       return false;
     },
   });
   requestAnimationFrame(() => led.classList.add('on'));
   function finishIntro() { introDone = true; document.body.classList.remove('intro'); try { sessionStorage.setItem('td:intro', '1'); } catch (e) { } }
-  const skip = () => { if (!introDone && skipAt == null) skipAt = hero.t; };
+  const skip = () => { if (!introDone && skipAt == null) skipAt = hero.t; };  // jumps straight to the finished hero
   ['wheel', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, skip, { passive: true, once: true }));
   $('#chapel').addEventListener('click', e => { if (!introDone && !e.target.closest('form,a,button')) skip(); });
-  setTimeout(() => { if (!introDone) skipAt = hero.t; }, 6000);
+  setTimeout(() => { if (!introDone && skipAt == null) skipAt = hero.t; }, 7000);
 
   /* ---------------- smooth scroll, reveal, nav ---------------- */
   let lenis = null;
@@ -236,29 +262,36 @@
   const errMsg = e => /reject|cancel|denied|declin/i.test(e && e.message) ? 'Cancelled in the wallet.' : (e && e.message) || 'Something went wrong.';
 
   /* ---------------- radar: the most vamped coins right now ---------------- */
+  let radarAt = 0;
   async function loadRadar() {
     try {
-      const r = await api('radar'), list = (Array.isArray(r) ? r : []).filter(x => x.vamps > 0); if (!list.length) return;
-      const one = list.map(x => `<button type="button" data-vq="${esc(x.symbol)}">${av(x)}<b>$${esc(x.symbol)}</b><span>${x.vamps} vamp${x.vamps === 1 ? '' : 's'}</span><em>${x.isOg ? 'original' : 'is a vamp'}</em></button>`).join('');
-      $('#radarIn').innerHTML = one + one; $('#radarIn').style.animationDuration = Math.max(30, list.length * 8) + 's'; $('#radar').hidden = false;
+      const r = await api('radar'), list = (Array.isArray(r) ? r : r.list || []).filter(x => x.vamps > 0); radarAt = r.at || Date.now(); tickRadar();
+      if (!list.length) return;
+      const one = list.map(x => `<button type="button" data-vq="${esc(x.symbol)}">${av(x)}<b>$${esc(x.symbol)}</b><span>${x.vamps} vamp${x.vamps === 1 ? '' : 's'}</span>${x.fresh ? `<i class="fresh">+${x.fresh} this hour</i>` : ''}<em>${x.newest != null ? 'newest ' + (x.newest < 1 ? 'just now' : mins(x.newest) + ' ago') : ''}</em></button>`).join('');
+      $('#radarIn').innerHTML = one + one; $('#radarIn').style.animationDuration = Math.max(30, list.length * 9) + 's'; $('#radar').hidden = false;
     } catch (e) { }
   }
+  function tickRadar() { const s = Math.max(0, Math.round((Date.now() - radarAt) / 1000)); const el = $('#radarAge'); if (el && radarAt) el.textContent = s < 5 ? 'just now' : s + 's ago'; }
+  setInterval(tickRadar, 1000);
   document.addEventListener('click', e => { const b = e.target.closest('[data-vq]'); if (!b) return; $('#vQ').value = b.dataset.vq; findVamps(b.dataset.vq); goTo($('#vamps')); });
 
   /* ---------------- vamps ---------------- */
-  async function findVamps(q) {
+  async function findVamps(q, quiet) {
     q = String(q || '').trim(); if (!q) return; const out = $('#vOut');
-    out.innerHTML = `<div class="empty">Searching every pair called ${esc(q)}…</div>`;
+    const before = new Set(quiet && S.vamps && S.vq === q ? S.vamps.vamps.map(v => v.mint) : []);
+    if (!quiet) out.innerHTML = `<div class="empty">Scanning every pair called ${esc(q)}…</div>`;
     try {
-      const r = await api('vamps?q=' + encodeURIComponent(q)); S.vamps = r;
+      const r = await api('vamps?q=' + encodeURIComponent(q)); S.vamps = r; S.vq = q; S.vAt = r.at || Date.now();
       if (!r.og) { out.innerHTML = `<div class="empty"><b>Nothing found for ${esc(q)}.</b><br>Try the exact ticker or paste the contract address.</div>`; return; }
       const o = r.og;
       out.innerHTML = `<div class="og">${av(o, true)}<div><h3>$${esc(o.symbol)} <span style="color:var(--mu);font-weight:500;font-size:16px">${esc(o.name)}</span></h3><div class="m mono"><span>launched <b>${ago(o.created)}</b></span><span>mc <b>${usd(o.mc)}</b></span><span>vol 24h <b>${usd(o.vol)}</b></span><span class="mono">${esc(short(o.mint))}</span></div></div>
         <div class="acts"><a class="btn sm" href="${esc(o.url || 'https://dexscreener.com/solana/' + o.mint)}" target="_blank" rel="noopener">Chart</a><button class="btn sm" type="button" data-copy="${esc(o.mint)}">Copy CA</button></div></div>
-        <div class="vhead"><span><b>${r.vamps.length}</b> VAMP${r.vamps.length === 1 ? '' : 'S'} · ${usd(r.vamps.reduce((a, v) => a + (v.vol || 0), 0))} VOLUME</span><span>EVERY VAMP GETS A RING</span></div>
-        ${r.vamps.length ? `<div class="vlist">${r.vamps.map((v, i) => `<div class="vrow" style="--i:${Math.min(i, 20)}"><span class="n">#${i + 1}</span>${av(v)}<span class="nm"><b>$${esc(v.symbol)} · ${esc(v.name)}</b><span>${esc(short(v.mint))}</span></span><span class="h-a">+${mins(v.after)}</span><span class="h-m">${usd(v.mc)}</span><span class="h-v">${usd(v.vol)} vol</span><span class="acts"><button class="btn sm" type="button" data-prop="${esc(o.mint)}|${esc(v.mint)}">Propose</button><button class="btn sm" type="button" data-mv="${esc(v.mint)}|${esc(o.mint)}">Move in</button></span></div>`).join('')}</div>` : `<div class="empty"><b>No vamps.</b> This one is the only one.</div>`}`;
-    } catch (e) { out.innerHTML = `<div class="empty"><b>Search failed.</b><br>${esc(e.message)}</div>`; }
+        <div class="vhead"><span><b>${r.vamps.length}</b> VAMP${r.vamps.length === 1 ? '' : 'S'} · <b>${r.vamps.filter(v => v.ago <= 60).length}</b> THIS HOUR · ${usd(r.vamps.reduce((a, v) => a + (v.vol || 0), 0))} VOLUME</span><span class="live"><i></i>RESCANS EVERY MINUTE · <b id="vAge">just now</b></span></div>
+        ${r.vamps.length ? `<div class="vlist">${r.vamps.map((v, i) => `<div class="vrow${before.size && !before.has(v.mint) ? ' new' : ''}" style="--i:${quiet ? 0 : Math.min(i, 20)}"><span class="n">#${i + 1}</span>${av(v)}<span class="nm"><b>$${esc(v.symbol)} · ${esc(v.name)}${v.ago <= 60 ? ' <i class="fresh">NEW</i>' : ''}</b><span>${esc(short(v.mint))} · launched ${v.ago < 1 ? 'just now' : mins(v.ago) + ' ago'}</span></span><span class="h-a">+${mins(v.after)}</span><span class="h-m">${usd(v.mc)}</span><span class="h-v">${usd(v.vol)} vol</span><span class="acts"><button class="btn sm" type="button" data-prop="${esc(o.mint)}|${esc(v.mint)}">Propose</button><button class="btn sm" type="button" data-mv="${esc(v.mint)}|${esc(o.mint)}">Move in</button></span></div>`).join('')}</div>` : `<div class="empty"><b>No vamps.</b> This one is the only one.</div>`}`;
+      if (quiet && before.size) { const n = r.vamps.filter(v => !before.has(v.mint)).length; if (n) toast(`${n} new vamp${n === 1 ? '' : 's'} of $${r.og.symbol} just launched`); }
+    } catch (e) { if (!quiet) out.innerHTML = `<div class="empty"><b>Search failed.</b><br>${esc(e.message)}</div>`; }
   }
+  setInterval(() => { const el = $('#vAge'); if (el && S.vAt) { const s = Math.round((Date.now() - S.vAt) / 1000); el.textContent = s < 5 ? 'just now' : s + 's ago'; } }, 1000);
   $('#vFind').addEventListener('submit', e => { e.preventDefault(); findVamps($('#vQ').value); });
   $('#heroFind').addEventListener('submit', e => { e.preventDefault(); const q = $('#heroQ').value.trim(); if (!q) return $('#heroQ').focus(); $('#vQ').value = q; findVamps(q); goTo($('#vamps')); });
   document.addEventListener('click', async e => {
@@ -458,6 +491,7 @@
   loadRadar(); loadCeremonies(); loadTied(); loadSingles();
   setInterval(() => { if (!document.hidden) loadCeremonies(); }, 20000);
   setInterval(() => { if (!document.hidden) { loadTied(); loadSingles(); } }, 60000);
-  setInterval(() => { if (!document.hidden) loadRadar(); }, 180000);
+  setInterval(() => { if (!document.hidden) loadRadar(); }, 60000);
+  setInterval(() => { if (!document.hidden && S.vq && $('#vamps').getBoundingClientRect().top < innerHeight && $('#vamps').getBoundingClientRect().bottom > 0) findVamps(S.vq, true); }, 60000);
   const deep = (location.hash.match(/^#w=(\d+)/) || [])[1]; if (deep) setTimeout(() => openWedding(+deep), 600);
 })();
