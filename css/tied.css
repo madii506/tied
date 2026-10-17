@@ -418,3 +418,11 @@ main{position:relative;z-index:1}
 .qa{background:rgba(0,0,0,.86);border-radius:var(--r);padding:0 18px}
 .vhead{background:rgba(0,0,0,.82);padding:8px 12px;border-radius:10px}
 .sub{text-shadow:0 0 12px #000,0 0 4px #000}
+/* the $TIED contract address under the hero search */
+.ca{display:flex;align-items:center;gap:6px;max-width:100%;padding:5px 5px 5px 14px;border:1px solid var(--ln2);border-radius:999px;background:rgba(8,8,8,.94)}
+.cal{font-size:11px;letter-spacing:.14em;color:var(--fa);flex:none}
+.cav{min-width:0;font-size:12.5px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+.cav:hover{color:#fff}
+.cab{flex:none;height:30px;padding:0 13px;border-radius:999px;border:1px solid var(--ln2);font:700 12.5px I;color:var(--tx);display:inline-flex;align-items:center;transition:background .2s,border-color .2s}
+.cab:hover{background:var(--p2);border-color:var(--mu)}
+@media (max-width:700px){.ca{width:100%}.cav{font-size:11px;padding:0 2px}.cab{padding:0 10px}.ca a.cab:last-child{display:none}}
