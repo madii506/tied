@@ -196,15 +196,25 @@ function b58enc(buf) {
   for (let i = digits.length - 1; i >= 0; i--) s += ALPH[digits[i]];
   return s;
 }
-async function rpcBatch(calls) {
+// batched JSON-RPC with a per-item fallback: public nodes rate-limit or refuse batches, so anything missing is
+// fetched again one by one (a few at a time) from whichever RPC answers
+async function rpcBatch(calls, deadline = Date.now() + 14000) {
+  const out = calls.map(() => null), miss = new Set(calls.map((_, i) => i));
   for (const u of RPCS) {
+    if (!miss.size || Date.now() > deadline) break;
+    const idx = [...miss];
     try {
-      const r = await timed(12000)(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(calls.map((c, i) => ({ jsonrpc: '2.0', id: i, method: c[0], params: c[1] }))) });
-      const j = await r.json(); if (!Array.isArray(j)) throw new Error('no batch');
-      return j.sort((a, b) => a.id - b.id).map(x => x.result || null);
+      const r = await timed(12000)(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(idx.map(i => ({ jsonrpc: '2.0', id: i, method: calls[i][0], params: calls[i][1] }))) });
+      const j = await r.json(); if (!Array.isArray(j)) continue;
+      for (const x of j) if (x && x.result && miss.has(x.id)) { out[x.id] = x.result; miss.delete(x.id); }
     } catch (e) { }
   }
-  return calls.map(() => null);
+  const left = [...miss];
+  for (let k = 0; k < left.length && Date.now() < deadline; k += 5) {
+    await Promise.all(left.slice(k, k + 5).map(async i => { try { const v = await rpc(calls[i][0], calls[i][1], x => x != null); out[i] = v; miss.delete(i); } catch (e) { } }));
+  }
+  out.missed = miss.size;
+  return out;
 }
 function parseCreate(tx) {
   if (!tx || !tx.meta || tx.meta.err) return null;
@@ -231,13 +241,15 @@ async function ingest(force) {
     // claim the slot so parallel requests don't all hit the RPC
     const claim = await db()`INSERT INTO td_cache (k, v, at) VALUES ('ingest', '{}'::jsonb, now()) ON CONFLICT (k) DO UPDATE SET at=now() WHERE td_cache.at < now() - make_interval(secs => ${force ? 8 : 25}) RETURNING v`;
     if (!claim.length) return 0;
-    const st = claim[0].v || {}, opt = { limit: 120, commitment: 'confirmed' }; if (st.last) opt.until = st.last;
+    const st = claim[0].v || {}, opt = { limit: 90, commitment: 'confirmed' }; if (st.last) opt.until = st.last;
     const sigs = (await rpc('getSignaturesForAddress', [MINT_AUTH, opt], x => Array.isArray(x))).filter(s => !s.err);
     if (!sigs.length) return 0;
-    const out = [];
+    const out = []; let missed = 0; const deadline = Date.now() + 15000;
     for (let i = 0; i < sigs.length; i += 30) {
       const chunk = sigs.slice(i, i + 30);
-      const txs = await rpcBatch(chunk.map(s => ['getTransaction', [s.signature, { encoding: 'json', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]]));
+      if (Date.now() > deadline) { missed += chunk.length; continue; }
+      const txs = await rpcBatch(chunk.map(s => ['getTransaction', [s.signature, { encoding: 'json', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }]]), deadline);
+      missed += txs.missed || 0;
       txs.forEach((tx, k) => { const c = parseCreate(tx); if (c) { if (!c.t && chunk[k].blockTime) c.t = chunk[k].blockTime * 1000; if (c.t) out.push(c); } });
     }
     for (let i = 0; i < out.length; i += 50) {
@@ -246,8 +258,10 @@ async function ingest(force) {
         SELECT * FROM unnest(${part.map(c => c.mint)}::text[], ${part.map(c => c.sig || '')}::text[], ${part.map(c => c.name)}::text[], ${part.map(c => c.symbol)}::text[], ${part.map(c => norm(c.symbol))}::text[], ${part.map(c => norm(c.name))}::text[], ${part.map(c => c.creator)}::text[], ${part.map(c => c.uri)}::text[], ${part.map(c => new Date(c.t).toISOString())}::timestamptz[])
         ON CONFLICT (mint) DO NOTHING`;
     }
-    const gap = !!st.last && sigs.length >= 120;   // more launches happened since the last read than one read covers
-    await db()`UPDATE td_cache SET v=${JSON.stringify({ last: sigs[0].signature, read: (st.read || 0) + out.length, gaps: (st.gaps || 0) + (gap ? 1 : 0), since: st.since || Date.now() })} WHERE k='ingest'`;
+    const gap = !!st.last && sigs.length >= 90;   // more launches happened since the last read than one read covers
+    // if the RPCs dropped too many reads, keep the old bookmark so the next read covers them again
+    const keep = missed > Math.max(3, sigs.length * .25);
+    await db()`UPDATE td_cache SET v=${JSON.stringify({ last: keep ? st.last : sigs[0].signature, read: (st.read || 0) + out.length, missed, gaps: (st.gaps || 0) + (gap ? 1 : 0), since: st.since || Date.now() })} WHERE k='ingest'`;
     if (Math.random() < .03) db()`DELETE FROM td_creates WHERE t < now() - interval '4 days'`.catch(() => { });
     return out.length;
   })();
